@@ -1366,7 +1366,7 @@ $('#soundToggle').addEventListener('click', () => { const bar = $('#soundBar'), 
 // ---- オンライン（room capability の presence で同期） ----
 // ---- 自前の中継サーバー（Render）につなぐ口。claude.ai の room と同じ使い方にそろえてある ----
 function makeWsLobby(url) {
-  const L = { ws: null, id: null, room: null, mine: {}, map: new Map(), peers: [], subs: new Set(), status: 'idle', wait: null, statusFns: new Set(), hb: 0 };
+  const L = { ws: null, id: null, room: null, mine: {}, map: new Map(), peers: [], subs: new Set(), status: 'idle', wait: null, statusFns: new Set(), hb: 0, retry: 0, connectTimer: 0, ackTimer: 0, joinTimer: 0 };
   const setStatus = st => { L.status = st; L.statusFns.forEach(f => { try { f(st); } catch (e) { } }); };
   const send = o => { if (L.ws && L.ws.readyState === 1) L.ws.send(JSON.stringify(o)); };
   const rebuild = () => {
@@ -1375,21 +1375,41 @@ function makeWsLobby(url) {
     const ch = { peers: L.peers, joined: [], left: [], updated: [] };
     L.subs.forEach(f => { try { f(ch); } catch (e) { console.error(e); } });
   };
+  const settle = error => {
+    clearTimeout(L.joinTimer); L.joinTimer = 0;
+    const w = L.wait; L.wait = null;
+    if (w) { if (error) w.ng(error); else w.ok(); }
+  };
+  function reconnect(ws) {
+    if (L.ws !== ws) return;
+    L.ws = null; clearTimeout(L.connectTimer); clearTimeout(L.ackTimer);
+    try { ws.close(); } catch (e) { }
+    setStatus('closed');
+    clearTimeout(L.retry); if (L.room) L.retry = setTimeout(open, 1500);
+  }
+  function sendJoin() {
+    send({ t: 'join', room: L.room, p: L.mine });
+    clearTimeout(L.ackTimer);
+    const ws = L.ws; L.ackTimer = setTimeout(() => reconnect(ws), 12000);
+  }
   function open() {
     if (L.ws && L.ws.readyState <= 1) return;
     setStatus('connecting');
-    let ws; try { ws = new WebSocket(url); } catch (e) { setStatus('error'); return; }
+    let ws; try { ws = new WebSocket(url); } catch (e) { setStatus('error'); if (L.room) L.retry = setTimeout(open, 1500); return; }
     L.ws = ws;
-    ws.onopen = () => { setStatus('open'); if (L.room) send({ t: 'join', room: L.room, p: L.mine }); };
+    // Render起動中などにCONNECTINGで固まったソケットを作り直す。
+    L.connectTimer = setTimeout(() => reconnect(ws), 20000);
+    ws.onopen = () => { if (L.ws !== ws) return; clearTimeout(L.connectTimer); setStatus('open'); if (L.room) sendJoin(); };
     ws.onmessage = ev => {
+      if (L.ws !== ws) return;
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.t === 'hello') L.id = m.id;
-      else if (m.t === 'joined') { L.id = m.id; if (L.wait) { const w = L.wait; L.wait = null; w.ok(); } }
+      else if (m.t === 'joined') { L.id = m.id; clearTimeout(L.ackTimer); settle(); }
       else if (m.t === 'peers') { const next = new Map(); for (const x of m.list || []) { const old = L.map.get(x.id); next.set(x.id, { p: Object.freeze(x.p || {}), peer: old && old.peer }); } L.map = next; rebuild(); }
       else if (m.t === 'up') { const v = L.map.get(m.id); if (!v) return; const p = { ...v.p }; for (const k in m.patch) { if (m.patch[k] === null) delete p[k]; else p[k] = m.patch[k]; } v.p = Object.freeze(p); rebuild(); }
-      else if (m.t === 'error' && L.wait) { const w = L.wait; L.wait = null; w.ng(new Error(m.code)); }
+      else if (m.t === 'error' && L.wait) { clearTimeout(L.ackTimer); L.room = null; clearInterval(L.hb); settle(new Error(m.code)); }
     };
-    ws.onclose = () => { setStatus('closed'); if (L.room) setTimeout(open, 1500); }; // 試合中に切れたら自動でつなぎ直す
+    ws.onclose = () => reconnect(ws); // 試合中に切れたら同じ状態で入り直す
     ws.onerror = () => { };
   }
   const room = {
@@ -1397,22 +1417,26 @@ function makeWsLobby(url) {
     onPeers(fn) { L.subs.add(fn); setTimeout(() => fn({ peers: L.peers, joined: [], left: [], updated: [] }), 0); return () => L.subs.delete(fn); },
     peers() { return L.peers; },
     connected() { return L.status === 'open'; },
-    leave() { L.room = null; L.mine = {}; L.map = new Map(); L.peers = []; clearInterval(L.hb); send({ t: 'leave' }); return Promise.resolve(); },
+    leave() { L.room = null; L.mine = {}; L.map = new Map(); L.peers = []; clearInterval(L.hb); clearTimeout(L.retry); clearTimeout(L.ackTimer); settle(new Error('cancelled')); send({ t: 'leave' }); return Promise.resolve(); },
   };
   return {
     remote: true,
+    cancelJoin() { room.leave(); },
     warm() { // ロビーを開いた時点で、休止中のサーバーを起こしておく
       try { fetch(url.replace(/^ws/, 'http'), { cache: 'no-store' }).catch(() => { }); } catch (e) { }
       open();
     },
     onStatus(fn) { L.statusFns.add(fn); fn(L.status); },
     join(name) {
+      settle(new Error('cancelled')); clearTimeout(L.retry);
       L.room = name; L.mine = {}; L.map = new Map(); L.peers = [];
       clearInterval(L.hb); L.hb = setInterval(() => send({ t: 'hb' }), 30000);
       return new Promise((ok, ng) => {
         L.wait = { ok: () => ok(room), ng };
-        if (L.status === 'open') send({ t: 'join', room: name, p: L.mine }); else open();
-        setTimeout(() => { if (L.wait && L.wait.ng === ng) { L.wait = null; ng(new Error('timeout')); } }, 90000);
+        if (L.ws && L.ws.readyState === 1) sendJoin(); else open();
+        L.joinTimer = setTimeout(() => {
+          if (L.wait && L.wait.ng === ng) { L.room = null; clearInterval(L.hb); clearTimeout(L.retry); clearTimeout(L.ackTimer); settle(new Error('timeout')); }
+        }, 90000);
       });
     },
   };
@@ -1433,6 +1457,11 @@ roomReady.then(r => {
       if (st === 'open') { note.textContent = 'オンライン対戦OK。部屋を作るか、相手から聞いたコードで入ってください'; note.className = 'note'; }
       else if (st === 'connecting') { note.innerHTML = '<span class="spin"></span>対戦サーバーを起こしています（休止中だと最大1分ほど）'; note.className = 'note'; }
       else if (st === 'closed' || st === 'error') { note.textContent = '対戦サーバーにつながりません。少し待ってから開き直してください。CPU練習はいつでもできます'; note.className = 'note warn'; }
+      if (NET.mode === 'online' && !NET.room) {
+        if (st === 'closed' || st === 'error') $('#waitStatus').innerHTML = '<span class="spin"></span>接続を再試行しています。最大90秒で結果を表示します';
+        else if (st === 'connecting') $('#waitStatus').innerHTML = '<span class="spin"></span>対戦サーバーに接続しています（最大90秒）。同じ部屋コードで再試行します';
+        else if (st === 'open') $('#waitStatus').innerHTML = '<span class="spin"></span>サーバーに接続しました。部屋への入室を確認しています';
+      }
     });
     r.warm();
   } else if (r) { note.textContent = 'オンライン対戦OK。部屋を作るか、相手から聞いたコードで入ってください'; note.className = 'note'; }
@@ -1447,12 +1476,20 @@ const newCode = () => Array.from({ length: 4 }, () => CODE_CH[(Math.random() * C
 
 async function goOnline(code, create) {
   if (!ROOM) return;
-  leaveRoom(); C.token++;
+  leaveRoom(); const token = ++C.token;
   NET.mode = 'online'; NET.create = create; NET.code = code; NET.seen = new Set(); NET.swingSeq = 0; NET.joinFinal = false; C.seat = null; C.gs = null; C.pendingPi = null;
   show('#home', false); show('#wait', true); $('#waitCode').textContent = code; $('#copyNote').textContent = '';
-  $('#waitStatus').innerHTML = ROOM.remote ? '<span class="spin"></span>対戦サーバーに接続しています（休止中だと最大1分ほど）' : '<span class="spin"></span>接続しています';
-  try { NET.room = await ROOM.join('marutto-' + code.toLowerCase()); }
-  catch (e) { $('#waitStatus').textContent = e && e.message === 'full' ? 'この部屋は満員です' : '部屋に接続できませんでした。少し待ってからもう一度お試しください'; NET.mode = null; return; }
+  show('#retryJoinBtn', false);
+  $('#waitStatus').innerHTML = ROOM.remote ? '<span class="spin"></span>対戦サーバーに接続しています（最大90秒）。同じ部屋コードで再試行します' : '<span class="spin"></span>接続しています';
+  let joined;
+  try { joined = await ROOM.join('marutto-' + code.toLowerCase()); }
+  catch (e) {
+    if (token !== C.token || NET.mode !== 'online') return;
+    $('#waitStatus').textContent = e && e.message === 'full' ? 'この部屋は満員です' : 'サーバーに接続できませんでした。「同じコードで再接続」から試し直せます';
+    show('#retryJoinBtn', true); NET.mode = null; return;
+  }
+  if (token !== C.token || NET.mode !== 'online') return;
+  NET.room = joined;
   const me = { v: 1, nick: nickname(), avatar: chosenAvatar ? AVATAR.clean(chosenAvatar) : null, seat: null, pi: null, sw: null, gs: null, sa: null };
   if (create) { me.seat = 'home'; me.inn = NET.innings; C.seat = 'home'; }
   NET.room.presence(me).catch(() => { });
@@ -1470,6 +1507,7 @@ function leaveRoom() {
   clearTimeout(NET.joinTimer);
   if (NET.unsub) { try { NET.unsub(); } catch (e) { } NET.unsub = null; }
   if (NET.room) { NET.room.leave().catch(() => { }); NET.room = null; }
+  else if (NET.mode === 'online' && ROOM && ROOM.cancelJoin) ROOM.cancelJoin();
   NET.mode = null; NET.opp = null;
 }
 function others() { return NET.room ? NET.room.peers().filter(p => !p.sameTab && p.kind === 'viewer') : []; }
@@ -1557,6 +1595,7 @@ $('#joinBtn').addEventListener('click', () => {
 $('#codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#joinBtn').click(); });
 $('#cpuBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => startCPU()); });
 $('#cancelBtn').addEventListener('click', () => { leaveRoom(); toLobby(); });
+$('#retryJoinBtn').addEventListener('click', () => goOnline(NET.code, NET.create));
 $('#copyBtn').addEventListener('click', () => {
   const code = $('#waitCode').textContent;
   const done = () => $('#copyNote').textContent = 'コピーしました';
