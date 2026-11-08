@@ -91,45 +91,84 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   plate.rotation.x = -Math.PI / 2; plate.position.set(0, 0.015, 0.215); plate.rotation.z = Math.PI; scene.add(plate);
 
   // フェンス・ファウルゾーンの壁・スタンド
-  const wall = [];
+  const wall = [], outline = [];
   const pole = s => { const d = BB.fenceDist(45 * s); return [s * d * Math.SQRT1_2, -d * Math.SQRT1_2]; };
-  const nL = [-Math.SQRT1_2, Math.SQRT1_2], nR = [Math.SQRT1_2, Math.SQRT1_2];
-  // 左ポール→左ファウル壁→バックネット→右ファウル壁→右ポール→外野フェンス
+  // 一周閉じた輪郭。長いファウル側の壁も分割して客席と通路の密度をそろえる。
   const pl = pole(-1), pr = pole(1);
-  wall.push([pl[0] + nL[0] * 2, pl[1] + nL[1] * 2]);
-  wall.push([nL[0] * 13 - 4, nL[1] * 13 - 4]);
-  for (let a = 135; a >= 45; a -= 10) { const r = a * Math.PI / 180; wall.push([Math.cos(r) * 15, Math.sin(r) * 15]); }
-  wall.push([nR[0] * 13 + 4, nR[1] * 13 - 4]);
-  wall.push([pr[0] + nR[0] * 2, pr[1] + nR[1] * 2]);
-  for (let a = 45; a >= -45; a -= 3) { const r = a * Math.PI / 180, d = BB.fenceDist(a); wall.push([Math.sin(r) * d, -Math.cos(r) * d]); }
+  outline.push(pl);
+  for (let a = 135; a >= 45; a -= 3) { const r = a * Math.PI / 180; outline.push([Math.cos(r) * 18, Math.sin(r) * 18]); }
+  outline.push(pr);
+  for (let a = 42; a >= -42; a -= 3) { const r = a * Math.PI / 180, d = BB.fenceDist(a); outline.push([Math.sin(r) * d, -Math.cos(r) * d]); }
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i], b = outline[(i + 1) % outline.length], count = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5);
+    for (let j = 0; j < count; j++) wall.push([lerp(a[0], b[0], j / count), lerp(a[1], b[1], j / count)]);
+  }
   const wallMat = M('#245f52'), padTop = M('#ffcf3f');
   const crowd = canvasTex(1024, 512, (g, w, h) => {
-    g.fillStyle = '#2f5d8c'; g.fillRect(0, 0, w, h);
-    for (let y = 0; y < h; y += 16) { g.fillStyle = y % 32 ? '#33669a' : '#2a5684'; g.fillRect(0, y, w, 10); }
-    const cs = ['#ffffff', '#e4572e', '#ffb627', '#2e86de', '#f4f1ea', '#7ad36b', '#ff8fb1', '#1b2a4a'];
-    for (let i = 0; i < 9000; i++) { if (Math.random() < 0.3) continue; g.fillStyle = cs[(Math.random() * cs.length) | 0];
-      const x = Math.random() * w, y = Math.floor(Math.random() * 32) * 16 + 4; g.beginPath(); g.arc(x, y, 3.2, 0, 7); g.fill(); }
+    const r = BB.rng(71026), shirts = ['#fff6df', '#e66d4b', '#ffce65', '#6bafd8', '#e9edf2', '#7ab999'];
+    g.fillStyle = '#295975'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 16) for (let x = 0; x < w; x += 14) {
+      g.fillStyle = '#1c425d'; g.fillRect(x + 2, y + 2, 10, 12);
+      g.fillStyle = '#518caf'; g.fillRect(x + 3, y + 3, 8, 7);
+      if (r() < 0.25) continue;
+      g.fillStyle = shirts[Math.floor(r() * shirts.length)]; g.fillRect(x + 3, y + 8, 8, 6);
+      g.fillStyle = '#f0c69c'; g.beginPath(); g.arc(x + 7, y + 6, 2.5, 0, Math.PI * 2); g.fill();
+    }
   });
   crowd.wrapS = crowd.wrapT = THREE.RepeatWrapping;
-  const pos = [], uv = [], idx = []; let u = 0;
   const H = 3.2, REF = [0, -45];
-  for (let i = 0; i < wall.length - 1; i++) {
-    const [x1, z1] = wall[i], [x2, z2] = wall[i + 1];
-    const len = Math.hypot(x2 - x1, z2 - z1), cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
-    let nx = (z2 - z1) / len, nz = -(x2 - x1) / len; if (nx * (cx - REF[0]) + nz * (cz - REF[1]) < 0) { nx = -nx; nz = -nz; }
-    const wm = new THREE.Mesh(new THREE.BoxGeometry(len + 0.2, H, 0.4), wallMat);
-    wm.position.set(cx + nx * 0.2, H / 2, cz + nz * 0.2); wm.rotation.y = Math.atan2(-(z2 - z1), x2 - x1); wm.receiveShadow = true; scene.add(wm);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(len + 0.2, 0.18, 0.46), padTop); top.position.copy(wm.position); top.position.y = H; top.rotation.y = wm.rotation.y; scene.add(top);
-    // スタンド（外側へ上る斜面）
-    const deep = 34, rise = 20, b = pos.length / 3;
-    const o1 = [x1 + nx * 0.4, z1 + nz * 0.4], o2 = [x2 + nx * 0.4, z2 + nz * 0.4];
-    pos.push(o1[0], H + 0.6, o1[1], o2[0], H + 0.6, o2[1], o2[0] + nx * deep, H + rise, o2[1] + nz * deep, o1[0] + nx * deep, H + rise, o1[1] + nz * deep);
-    const u2 = u + len / 14; uv.push(u, 0, u2, 0, u2, 2.4, u, 2.4); u = u2;
-    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  const normals = wall.map(([x1, z1], i) => {
+    const [x2, z2] = wall[(i + 1) % wall.length], len = Math.hypot(x2 - x1, z2 - z1);
+    let nx = (z2 - z1) / len, nz = -(x2 - x1) / len;
+    if (nx * ((x1 + x2) / 2 - REF[0]) + nz * ((z1 + z2) / 2 - REF[1]) < 0) { nx = -nx; nz = -nz; }
+    return [nx, nz];
+  });
+  // 角の頂点を隣の面と共有する。面ごとに押し出すと角に三角形の穴が開く。
+  const joints = wall.map((p, i) => {
+    const a = normals[(i + wall.length - 1) % wall.length], b = normals[i], d = 1 + a[0] * b[0] + a[1] * b[1];
+    return [(a[0] + b[0]) / d, (a[1] + b[1]) / d];
+  });
+  const ringPoint = (i, depth, y) => [wall[i][0] + joints[i][0] * depth, y, wall[i][1] + joints[i][1] * depth];
+  const buckets = Array.from({ length: 6 }, () => ({ pos: [], uv: [], idx: [] }));
+  // 客席、蹴上げ、通路、外壁、フェンス、笠木をまとめ、描画回数を抑える。
+  function band(d1, y1, d2, y2, material, row = 0, aisles = false) {
+    let u = 0;
+    for (let i = 0; i < wall.length; i++) {
+      const j = (i + 1) % wall.length, len = Math.hypot(wall[j][0] - wall[i][0], wall[j][1] - wall[i][1]);
+      const aisle = aisles && Math.floor(u / 32) !== Math.floor((u + len) / 32);
+      const bucket = buckets[aisle ? 2 : material], b = bucket.pos.length / 3;
+      bucket.pos.push(...ringPoint(i, d1, y1), ...ringPoint(j, d1, y1), ...ringPoint(j, d2, y2), ...ringPoint(i, d2, y2));
+      bucket.uv.push(u / 14, row / 32, (u + len) / 14, row / 32, (u + len) / 14, (row + 1) / 32, u / 14, (row + 1) / 32);
+      bucket.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); u += len;
+    }
   }
-  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  sg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); sg.setIndex(idx); sg.computeVertexNormals();
-  scene.add(new THREE.Mesh(sg, new THREE.MeshLambertMaterial({ map: crowd, side: THREE.DoubleSide })));
+  band(0, 0, 0, H, 4); band(0.4, H, 0.4, 0, 4);
+  band(-0.03, H + 0.09, 0.47, H + 0.09, 5);
+  band(-0.03, H - 0.09, -0.03, H + 0.09, 5);
+  band(0.47, H + 0.09, 0.47, H - 0.09, 5);
+  let depth = 0.45, height = H;
+  for (let row = 0; row < 28; row++) {
+    if (row === 14) { band(depth, height, depth + 2.6, height, 2); depth += 2.6; }
+    band(depth, height, depth + 1.1, height, 0, row, true); depth += 1.1;
+    band(depth, height, depth, height + 0.64, 1); height += 0.64;
+  }
+  band(depth, height, depth + 2.2, height, 2); depth += 2.2;
+  // 裏側・下面・最前列も閉じ、ロビーや打球カメラからも空洞が見えない構造にする。
+  band(depth, height, depth, 0.05, 3);
+  band(depth, 0.05, 0.45, 0.05, 3);
+  band(0.45, 0.05, 0.45, H, 3);
+  // 最上段の立ち上がりと笠木。
+  band(depth, height, depth, height + 1.1, 3);
+  band(depth - 0.15, height + 1.1, depth + 0.15, height + 1.1, 2);
+  const standMaterials = [new THREE.MeshLambertMaterial({ map: crowd, side: THREE.DoubleSide }),
+    M('#748f9b'), M('#d9d9c9'), M('#bac8c7'), wallMat, padTop];
+  buckets.forEach((b, i) => {
+    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2)); geometry.setIndex(b.idx); geometry.computeVertexNormals();
+    standMaterials[i].side = THREE.DoubleSide;
+    const mesh = new THREE.Mesh(geometry, standMaterials[i]); mesh.name = ['stadium-seats', 'stadium-risers', 'stadium-aisles', 'stadium-shell', 'stadium-fence', 'stadium-padding'][i];
+    mesh.receiveShadow = true; scene.add(mesh);
+  });
   // ポール
   for (const p of [pl, pr]) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 26, 10), M('#ffcf3f')); m.position.set(p[0], 13, p[1]); scene.add(m); }
   // バックネット
