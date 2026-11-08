@@ -3,12 +3,16 @@
 // 同じ部屋の相手にそのまま中継するだけ。判定はすべて各プレイヤーの画面側で行う。
 'use strict';
 const http = require('http');
+const fs = require('node:fs');
+const path = require('node:path');
 const { WebSocketServer } = require('ws');
 const { createCharacterStore, characterHandler } = require('./character-store');
 
 const PORT = process.env.PORT || 8080;
 // 接続を許すページの場所（カンマ区切り）。空ならどこからでも可
 const ALLOWED = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+// Renderで直接ゲームを開く入口も、既存のPagesと同じ対戦・共有保存を使えるようにする。
+if (ALLOWED.length && !ALLOWED.includes('https://super-baseball.onrender.com')) ALLOWED.push('https://super-baseball.onrender.com');
 const ROOM_MAX = 8;            // 1部屋の最大人数（2人＋観戦）
 const STATE_MAX = 8 * 1024;    // 1人の状態データの上限（バイト）
 const MSG_PER_SEC = 60;        // 1人あたり1秒間に受け付けるメッセージ数
@@ -18,7 +22,18 @@ let seq = 1;
 
 const handleCharacters = characterHandler(createCharacterStore(), ALLOWED);
 const server = http.createServer((req, res) => {
-  if (req.url.split('?')[0] === '/api/characters') { handleCharacters(req, res); return; }
+  const route = req.url.split('?')[0];
+  if (route === '/api/characters') { handleCharacters(req, res); return; }
+  if (route === '/play' || route === '/play/') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { Allow: 'GET, HEAD' }); res.end(); return; }
+    // 完成HTMLはビルド時に生成。任意のパスをファイルとして公開しない。
+    fs.readFile(path.join(__dirname, 'play.html'), (error, html) => {
+      if (error) { res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('ゲームを準備できませんでした'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(req.method === 'HEAD' ? undefined : html);
+    });
+    return;
+  }
   // 起動確認用（ゲームのロビーがここを呼んで、休止中のサーバーを起こす）
   res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
   res.end('ok');
@@ -93,4 +108,4 @@ setInterval(() => {
   }
 }, 25000);
 
-server.listen(PORT, () => console.log(`Super Hage BaseBall server: port ${PORT}`));
+server.listen(PORT, () => console.log(`Super Hage BaseBall server: port ${server.address().port}`));

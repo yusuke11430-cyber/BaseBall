@@ -29,9 +29,11 @@ Settings → Pages → Build and deployment
 接続先は `docs/config.js` の `window.MARUTTO_SERVER` で設定します（Render のURLの `https` を `wss` にしたもの）。
 
 ## 遊び方
+- オセロと同じくRenderへ直接アクセスして起動する入口: https://super-baseball.onrender.com/play
+- 従来のGitHub Pagesも利用できます。直接入口の画面は `server/play.html` にビルドし、音源などはPagesから読み込みます。
 - 「部屋を作る」→ 出てきた4文字のコードか「リンクをコピー」で相手に送る
 - 相手はリンクを開いて「部屋に入る」
-- 無料枠のサーバーは15分使わないと休止し、次に開いたとき起動まで最大1分ほどかかります
+- 無料枠のサーバーは15分使わないと休止し、次に開いたとき通常は約1分の起動待ちがあります（起動時間の保証ではありません）
 
 ## 素材
 - BGM・応援歌：ニコニ・コモンズ

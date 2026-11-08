@@ -4,7 +4,7 @@
   "private": true,
   "description": "Super Hage BaseBallの対戦中継・共有キャラ保存サーバー",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "test": "node test-characters.js" },
+  "scripts": { "start": "node server.js", "test": "node test-characters.js && node test-play.js" },
   "engines": { "node": ">=18" },
   "dependencies": { "ws": "8.18.0" }
 }

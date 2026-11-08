@@ -59,7 +59,7 @@ function createCharacterStore({ env = process.env, fetchImpl = fetch } = {}) {
 }
 function characterHandler(store, allowed = []) {
   let windowStart = 0, writes = 0;
-  const defaultOrigins = ['https://yusuke11430-cyber.github.io', 'http://127.0.0.1:8765', 'http://localhost:8765'];
+  const defaultOrigins = ['https://yusuke11430-cyber.github.io', 'https://super-baseball.onrender.com', 'http://127.0.0.1:8765', 'http://localhost:8765'];
   return async (req, res) => {
     const origin = req.headers.origin, origins = allowed.length ? allowed : defaultOrigins;
     const send = (code, data) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Origin',
