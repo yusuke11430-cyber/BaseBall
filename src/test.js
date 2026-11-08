@@ -8,6 +8,8 @@ for(const type of BB.PITCH_KEYS) for(let bl=1;bl<=7;bl++) for(const speed of [20
   const contact=BB.contactS(sz), at=BB.pitchPos(pi,contact);
   assert.deepEqual(BB.predictContact(pi,contact,sz),at);
   assert.deepEqual(BB.predictContact(pi,contact+0.1,sz),at);
+  // 球種や打者位置によらず、飛行70%からは正確な位置で安定する。
+  for(const fraction of [0.7,0.8,0.9]) assert.deepEqual(BB.predictContact(pi,contact*fraction,sz),at);
   for(const fraction of [0,0.02,0.25,0.5,0.9,0.999]) {
     const predicted=BB.predictContact(pi,contact*fraction,sz);
     assert.ok(Object.values(predicted).every(Number.isFinite));
@@ -27,6 +29,8 @@ assert.equal(BB.breakScale('st',7),1);
 // フォークの予想は上から下へ動き、球が届く直前には実際の位置へ収束する。
 const fork=BB.makePitch(1,'fk',0,0.8,42,134,100,7), target=BB.pitchPos(fork,1);
 assert.ok(BB.predictContact(fork,0.2).y>BB.predictContact(fork,0.8).y);
+assert.ok(BB.predictContact(fork,0.2).y-target.y>0.5);
+assert.ok(Math.abs(BB.predictContact(fork,0.6).y-target.y)<0.075);
 assert.ok(Math.abs(BB.predictContact(fork,0.999).y-target.y)<0.001);
 // 直球では20km/hの大きな山なりを未来の変化と誤認しない。
 const slow=BB.makePitch(1,'st',0,0.8,42,20,100,4);
