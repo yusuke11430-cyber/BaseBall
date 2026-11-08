@@ -7,6 +7,8 @@ const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const TEAM = { away: { jersey: '#e4572e', cap: '#b8361a' }, home: { jersey: '#2e86de', cap: '#174f8f' } };
 const WINDUP = 0.85, NET_LEAD = 0.18;   // 投手側は通信ぶん少し長く振りかぶる
 const BASES = [[0, 0], [19.4, -19.4], [0, -38.8], [-19.4, -19.4]];
+let chosenAvatar = null;
+let chosenAvatarId = null;
 
 // =============== 3D シーン ===============
 const canvas = $('#c');
@@ -184,8 +186,8 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   }
   const sb = new THREE.Mesh(new THREE.BoxGeometry(30, 12, 1.5), M('#1b2a4a')); sb.position.set(0, 34, -158); scene.add(sb);
   const sbf = new THREE.Mesh(new THREE.PlaneGeometry(28, 10), new THREE.MeshBasicMaterial({ map: canvasTex(560, 200, (g, w, h) => {
-    g.fillStyle = '#10203d'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffb627'; g.font = '700 92px "Dela Gothic One", sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('まるっと野球', w / 2, h / 2 + 6);
+    g.fillStyle = '#10203d'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffb627'; g.font = '700 37px "Dela Gothic One", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Super Hage BaseBall', w / 2, h / 2 + 6);
   }) }));
   sbf.position.set(0, 34, -157.2); scene.add(sbf);
   // 雲
@@ -207,13 +209,30 @@ function makePlayer(team, opts = {}) {
   const hm = new THREE.Mesh(sphG, skin); hm.scale.setScalar(0.25); hm.castShadow = true; head.add(hm);
   const capM = new THREE.Mesh(new THREE.SphereGeometry(0.262, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), cap); capM.position.y = 0.03; head.add(capM);
   const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 16, 1, false, -Math.PI / 2, Math.PI), cap); brim.position.set(0, 0.04, 0.12); head.add(brim);
-  for (const x of [-0.085, 0.085]) { const e = new THREE.Mesh(sphG, dark); e.scale.set(0.032, 0.045, 0.02); e.position.set(x, -0.01, 0.235); head.add(e); }
+  const eyes = [];
+  for (const x of [-0.085, 0.085]) { const e = new THREE.Mesh(sphG, dark); e.scale.set(0.032, 0.045, 0.02); e.position.set(x, -0.01, 0.235); head.add(e); eyes.push(e); }
   const handL = add(sphG, opts.mitt ? M('#9c5a2c') : glove, -0.37, 0.8, 0.06, opts.mitt ? 0.12 : 0.085);
   const handR = add(sphG, glove, 0.37, 0.8, 0.06, 0.085);
-  g.userData = { jersey, cap, skin, body, head, handL, handR, legL, legR };
+  g.userData = { jersey, cap, skin, body, head, handL, handR, legL, legR, eyes, capMesh: capM, brim };
   scene.add(g); return g;
 }
 function setTeam(p, t) { p.userData.jersey.color.set(t.jersey); p.userData.cap.color.set(t.cap); }
+function applyAvatar(p, value, team) {
+  const u = p.userData, a = value ? AVATAR.clean(value) : null, key = a ? JSON.stringify(a) : 'default';
+  if (u.avatarKey !== key) {
+    if (u.skin.map) u.skin.map.dispose(); if (u.jersey.map) u.jersey.map.dispose();
+    u.skin.map = a ? canvasTex(512, 256, (g,w,h) => AVATAR.paintHead(g,w,h,a)) : null;
+    u.jersey.map = a ? canvasTex(512, 256, (g,w,h) => AVATAR.paintJersey(g,w,h,a)) : null;
+    u.skin.needsUpdate = u.jersey.needsUpdate = true;
+    u.eyes.forEach(e => e.visible = !a); u.avatarKey = key;
+    u.skinBase = new THREE.Color(a ? '#ffffff' : '#f3c9a1');
+  }
+  u.skin.color.copy(u.skinBase);
+  u.jersey.color.set(a ? '#ffffff' : team.jersey); u.cap.color.set(a ? a.hatColor : team.cap);
+  u.capMesh.visible = !a || a.hat === 1 || a.hat === 2;
+  u.brim.visible = !a || a.hat !== 0; u.brim.rotation.y = a && a.hat === 2 ? Math.PI : 0;
+  u.brim.position.z = a && a.hat === 2 ? -0.12 : 0.12;
+}
 function runPose(p, t, moving) {
   const u = p.userData, k = moving ? Math.sin(t * 16) : 0;
   u.legL.position.z = k * 0.12; u.legR.position.z = -k * 0.12;
@@ -351,7 +370,7 @@ addEventListener('resize', resize); resize();
 
 // ---- 効果音 ----
 let AC = null;
-const SND = { raw: {}, buf: {}, vol: { bgm: 60, voice: 90, sfx: 80 }, master: null, sfx: null, voice: null, bgm: null, mode: null, cur: null, duck: 1 };
+const SND = { raw: {}, buf: {}, vol: { bgm: 5, voice: 20, sfx: 20 }, master: null, sfx: null, voice: null, bgm: null, mode: null, cur: null, duck: 1 };
 const bgmLevel = () => (BGM_VOL[SND.mode] || 0.3) * SND.duck * SND.vol.bgm / 60;
 const SND_NAMES = ['v_playball', 'v_ball', 'v_strike', 'v_strikeout', 'v_walk', 'v_foul', 'v_out', 'v_safe', 'v_hit', 'v_double', 'v_triple', 'v_homerun', 'v_gameset',
   's_bat_metal1', 's_bat_metal2', 's_bat_wood1', 's_bat_wood2', 's_mitt', 's_glove', 's_swing1', 's_swing2', 's_cheer', 's_cheer_big', 's_select1', 's_select2',
@@ -475,7 +494,7 @@ function updateStaminaLook(t, dt) {
   const show = !!C.gs && C.phase !== 'lobby' && C.phase !== 'over';
   const S = show ? staminaNow() : 100, tired = BB.clamp(1 - S / 60, 0, 1);
   const ud = pitcher.userData;
-  ud.skin.color.copy(SKIN).lerp(FLUSH, tired);
+  ud.skin.color.copy(ud.skinBase || SKIN).lerp(FLUSH, tired);
   const idle = C.phase === 'aim' || C.phase === 'wait' || C.phase === 'ready';
   const heave = idle ? Math.sin(t * (3 + 6 * tired)) * 0.07 * tired : 0;
   ud.body.scale.y = 0.34 * (1 + heave); ud.head.position.y = 1.33 + heave * 0.35;
@@ -533,6 +552,7 @@ const CALLS = {
 
 // =============== ゲーム進行 ===============
 const C = {
+  looks: { home: null, away: null },
   seat: null, gs: null, phase: 'lobby', pitchType: 'st', aim: { x: 0, y: 0.8 }, cur: { x: 0, y: 0.8 },
   pi: null, t0: 0, W: WINDUP, dur: 0.5, out: null, swingAt: null, impactAt: null, resolved: false,
   pendingPi: null, play: null, names: { away: 'ビジター', home: 'ホーム' }, token: 0,
@@ -593,8 +613,10 @@ function placeTeams() {
   const gs = C.gs; if (!gs) return;
   const bat = BB.batSide(gs), fld = bat === 'away' ? 'home' : 'away';
   for (const k in fielders) { setTeam(fielders[k], TEAM[fld]); const [x, z] = fielders[k].userData.base; fielders[k].position.set(x, k === 'p' ? 0.25 : 0, z); if (k !== 'c') fielders[k].rotation.set(0, Math.atan2(-x, -z), 0); runPose(fielders[k], 0, false); }
+  applyAvatar(pitcher, C.looks[fld], TEAM[fld]);
   pitcher.rotation.set(0, 0, 0); pitcher.userData.handR.position.set(0.37, 0.8, 0.06); pitcher.userData.legL.position.y = 0.3;
   setTeam(batter, TEAM[bat]); setTeam(batRunner, TEAM[bat]); batRunner.visible = false;
+  applyAvatar(batter, C.looks[bat], TEAM[bat]); applyAvatar(batRunner, C.looks[bat], TEAM[bat]);
   runners.forEach((r, i) => { setTeam(r, TEAM[bat]); r.visible = !!gs.bases[i]; const [x, z] = BASES[i + 1]; r.position.set(x + (i === 1 ? -1.2 : i === 0 ? -1.0 : 1.0), 0, z + 0.6); r.rotation.y = Math.atan2(-x, -z) + Math.PI; runPose(r, 0, false); });
   batter.visible = true; batPivot.visible = true; C.obsBunt = null;
   applyStance(role() === 'bat' ? ST : (NET.oppSt || { lh: false, x: -0.95, dz: 0 }));
@@ -845,7 +867,7 @@ function runnerPath(d) { // ホームからd塁分進んだ位置
 let last = now();
 function frame() {
   requestAnimationFrame(frame);
-  try { step(); } catch (err) { console.error(err); }
+  try { step(); renderAvatarPreview(); } catch (err) { console.error(err); }
 }
 function step() {
   const t = now(), dt = Math.min(0.05, t - last); last = t;
@@ -878,8 +900,8 @@ function updatePitch(t) {
   }
   const s = (e - C.W) / C.dur;
   const r = role();
-  // 振りかぶりの開始から、打撃判定と同じ到達位置を表示する。
-  if (r === 'bat' && C.phase === 'pitching' && !C.out && s < BB.contactS(ST.dz) + 0.02) {
+  // 打者まで90%進んだ時点から、打撃判定と同じ到達位置を表示する。
+  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= BB.contactS(ST.dz) * 0.9 && s < BB.contactS(ST.dz) + 0.02) {
     const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
@@ -1240,6 +1262,7 @@ function cpuBat(pi) {
 function startCPU() {
   leaveRoom(); C.token++;
   NET.mode = 'cpu'; C.seat = 'away'; C.names = { away: nickname(), home: 'CPU' };
+  C.looks = { away: chosenAvatar, home: null };
   NET.sendPi = msg => cpuBat(buildPitch(msg)); NET.sendSw = () => { }; NET.sendGs = () => { }; NET.sendSt = () => { }; NET.oppSt = null;
   C.gs = BB.newGame(NET.innings, 'cpu' + seed()); enterGame();
 }
@@ -1266,19 +1289,19 @@ function gameOver() {
     if (tok !== C.token) return;
     show('#lobby', true); ['#home', '#wait'].forEach(s => show(s, false)); show('#final', true);
     $('#finWho').textContent = w; $('#finScore').textContent = `${a} - ${h}`;
-    const canAgain = NET.mode === 'cpu' || C.seat === 'home';
-    $('#againBtn').hidden = !canAgain;
-    $('#finNote').textContent = canAgain ? '' : (C.seat === 'away' ? 'ホストが「もう一試合」を押すと始まります' : '');
+    $('#againBtn').hidden = C.seat === 'spec';
+    $('#againBtn').textContent = NET.mode === 'cpu' ? 'キャラを選んでもう一試合' : 'キャラを選んでロビーへ';
+    $('#finNote').textContent = NET.mode === 'cpu' ? '' : '次の試合は、キャラを選び直して新しい部屋で遊べます';
   }, 2200);
 }
 $('#againBtn').addEventListener('click', () => {
-  if (NET.mode === 'cpu') return startCPU();
-  if (C.seat === 'home') { C.token++; C.gs = BB.newGame(NET.innings, 'g' + seed()); C.pendingPi = null; NET.sendGs(C.gs); enterGame(); }
+  if (NET.mode === 'cpu') return openCharacterStudio(() => startCPU());
+  leaveRoom(); toLobby(); openCharacterStudio();
 });
 $('#backBtn').addEventListener('click', () => { leaveRoom(); toLobby(); });
 $('#menuBtn').addEventListener('click', () => { leaveRoom(); toLobby(); });
 // ---- 音量スライダー（BGM・声・効果音 それぞれ 0〜100） ----
-try { const v = JSON.parse(localStorage.getItem('marutto-vol') || 'null'); if (v) ['bgm', 'voice', 'sfx'].forEach(k => { if (Number.isFinite(v[k])) SND.vol[k] = BB.clamp(v[k], 0, 100); }); } catch (e) { }
+try { const v = JSON.parse(localStorage.getItem('shb-vol-v2') || 'null'); if (v) ['bgm', 'voice', 'sfx'].forEach(k => { if (Number.isFinite(v[k])) SND.vol[k] = BB.clamp(v[k], 0, 100); }); } catch (e) { }
 const VOL_IDS = { bgm: 'volBgm', voice: 'volVoice', sfx: 'volSfx' };
 let volT = 0;
 for (const k in VOL_IDS) {
@@ -1289,7 +1312,7 @@ for (const k in VOL_IDS) {
     if (k === 'bgm') bgmTick();
     if (k === 'sfx' && SND.sfx) SND.sfx.gain.value = SND.vol.sfx / 80;
     if (k === 'voice' && SND.voice) SND.voice.gain.value = SND.vol.voice / 90;
-    try { localStorage.setItem('marutto-vol', JSON.stringify(SND.vol)); } catch (e) { }
+    try { localStorage.setItem('shb-vol-v2', JSON.stringify(SND.vol)); } catch (e) { }
     clearTimeout(volT); volT = setTimeout(() => { if (k === 'voice') call2('strike'); if (k === 'sfx') SFX.hit(160); }, 250); // 試し聞き
   });
 }
@@ -1385,7 +1408,7 @@ async function goOnline(code, create) {
   $('#waitStatus').innerHTML = ROOM.remote ? '<span class="spin"></span>対戦サーバーに接続しています（休止中だと最大1分ほど）' : '<span class="spin"></span>接続しています';
   try { NET.room = await ROOM.join('marutto-' + code.toLowerCase()); }
   catch (e) { $('#waitStatus').textContent = e && e.message === 'full' ? 'この部屋は満員です' : '部屋に接続できませんでした。少し待ってからもう一度お試しください'; NET.mode = null; return; }
-  const me = { v: 1, nick: nickname(), seat: null, pi: null, sw: null, gs: null };
+  const me = { v: 1, nick: nickname(), avatar: chosenAvatar ? AVATAR.clean(chosenAvatar) : null, seat: null, pi: null, sw: null, gs: null };
   if (create) { me.seat = 'home'; me.inn = NET.innings; C.seat = 'home'; }
   NET.room.presence(me).catch(() => { });
   NET.sendPi = pi => NET.room && NET.room.presence({ pi }).catch(() => { });
@@ -1438,6 +1461,8 @@ function handlePeers(peers) {
   NET.opp = opp;
   const hn = C.seat === 'home' ? nickname() : home && home.presence.nick, an = C.seat === 'away' ? nickname() : away && away.presence.nick;
   C.names = { away: String(an || 'ビジター').slice(0, 10), home: String(hn || 'ホーム').slice(0, 10) };
+  C.looks = { home: C.seat === 'home' ? chosenAvatar : home && home.presence.avatar ? AVATAR.clean(home.presence.avatar) : null,
+    away: C.seat === 'away' ? chosenAvatar : away && away.presence.avatar ? AVATAR.clean(away.presence.avatar) : null };
   if (home && home.presence.inn && C.seat !== 'home') NET.innings = home.presence.inn | 0 || 3;
   // 試合開始：ホームが状態を作る
   if (C.seat === 'home' && opp && !C.gs && !(opp.presence && opp.presence.gs)) {
@@ -1473,14 +1498,14 @@ function sanitizePi(pi) {
 document.querySelectorAll('#innSeg button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#innSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); NET.innings = +b.dataset.v;
 }));
-$('#createBtn').addEventListener('click', () => { audio(); SFX.select(); goOnline(newCode(), true); });
+$('#createBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => goOnline(newCode(), true)); });
 $('#joinBtn').addEventListener('click', () => {
   audio(); const c = $('#codeIn').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (c.length !== 4) { $('#codeIn').focus(); $('#onlineNote').textContent = '4文字の部屋コードを入力してください'; return; }
-  goOnline(c, false);
+  openCharacterStudio(() => goOnline(c, false));
 });
 $('#codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#joinBtn').click(); });
-$('#cpuBtn').addEventListener('click', () => { audio(); SFX.select(); startCPU(); });
+$('#cpuBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => startCPU()); });
 $('#cancelBtn').addEventListener('click', () => { leaveRoom(); toLobby(); });
 $('#copyBtn').addEventListener('click', () => {
   const code = $('#waitCode').textContent;
@@ -1496,6 +1521,168 @@ $('#linkBtn').addEventListener('click', () => {
 function selectCode() { const r = document.createRange(); r.selectNodeContents($('#waitCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
 try { const n = localStorage.getItem('marutto-nick'); if (n) $('#nick').value = n; } catch (e) { }
 $('#nick').addEventListener('change', () => { try { localStorage.setItem('marutto-nick', nickname()); } catch (e) { } });
+
+// ---- 全員共通のキャラ一覧・キャラメイク ----
+const studio = { open: false, draft: AVATAR.clean(null), id: crypto.randomUUID(), selectedId: null, records: [], category: 'hair', color: 'skin',
+  canShare: null, pending: null, preview: null, turn: 0, saving: false, load: 0, lastRender: 0, previousFocus: null };
+const CHARACTER_CACHE = 'shb-shared-characters-v1';
+try {
+  const data = JSON.parse(localStorage.getItem(CHARACTER_CACHE) || '{}');
+  if (Array.isArray(data.characters)) studio.records = data.characters.filter(c => c && typeof c.id === 'string').slice(0,1000).map(c => ({ id: c.id, appearance: AVATAR.clean(c.appearance), shared: c.shared === true }));
+  const picked = studio.records.find(c => c.id === data.selectedId);
+  if (picked) { chosenAvatar = AVATAR.clean(picked.appearance); chosenAvatarId = picked.id; studio.selectedId = picked.id; }
+} catch (e) { }
+function cacheCharacters() {
+  try { localStorage.setItem(CHARACTER_CACHE, JSON.stringify({ selectedId: chosenAvatarId, characters: studio.records })); }
+  catch (e) { $('#avatarStatus').textContent = '端末に保存できません。共有保存が完了するまでこの画面を閉じないでください'; }
+}
+function characterEndpoint() {
+  try { const u = new URL(SERVER_URL); if (!['ws:','wss:'].includes(u.protocol)) return null; u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:'; u.pathname = '/api/characters'; u.search = ''; u.hash = ''; return u.href; }
+  catch (e) { return null; }
+}
+async function characterRequest(method = 'GET', body) {
+  const url = characterEndpoint(); if (!url) throw new Error('共有保存の接続先がありません');
+  const response = await fetch(url, { method, cache: 'no-store', headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20000) });
+  let data; try { data = await response.json(); } catch (e) { throw new Error('サーバーを更新しています。少し待って一覧を更新してください'); }
+  if (!response.ok) { if (data.shared === false) studio.canShare = false; throw new Error(data.error || '共有保存に接続できません'); }
+  return data;
+}
+function studioButtons() {
+  const saved = studio.records.some(c => c.id === studio.selectedId && c.shared);
+  $('#avatarSave').disabled = studio.saving || saved;
+  $('#avatarSave').textContent = saved ? '共有に保存済み' : studio.canShare === false ? 'この端末に保存' : '共有に保存';
+  $('#avatarUse').disabled = studio.saving;
+  $('#avatarUse').textContent = studio.pending ? 'このキャラで開始' : 'このキャラを選ぶ';
+}
+function renderCharacterList() {
+  const list = $('#characterList'); list.replaceChildren();
+  for (const record of [...studio.records].reverse()) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'character-card';
+    button.setAttribute('aria-pressed', String(record.id === studio.selectedId));
+    const dot = document.createElement('i'); dot.style.backgroundColor = record.appearance.uniform;
+    const text = document.createElement('div'), name = document.createElement('b'), note = document.createElement('span');
+    name.textContent = `${record.appearance.name} #${record.appearance.number}`; note.textContent = record.shared ? '共有キャラ' : 'この端末のみ';
+    text.append(name, document.createElement('br'), note); button.append(dot, text);
+    button.addEventListener('click', () => { if (studio.saving) return; studio.draft = AVATAR.clean(record.appearance); studio.id = record.id; studio.selectedId = record.id; refreshStudioFields(); renderCharacterList(); $('#avatarStatus').textContent = record.shared ? 'このキャラを選ぶか、パーツを変えて新しいキャラを作れます' : '端末に保存されたキャラです。共有保存後はみんなが選べます'; });
+    list.append(button);
+  }
+  if (!studio.records.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = 'まだキャラがいません。最初の選手を作ろう！'; list.append(p); }
+  studioButtons();
+}
+async function refreshSharedCharacters() {
+  const request = ++studio.load; $('#characterListStatus').textContent = '共有キャラを読み込んでいます…';
+  try {
+    const data = await characterRequest(); if (request !== studio.load) return;
+    if (!Array.isArray(data.characters)) throw new Error('共有一覧の形式を確認できません');
+    studio.canShare = data.writable !== false;
+    const shared = data.characters.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, appearance: AVATAR.clean(c.appearance), shared: true }));
+    const ids = new Set(shared.map(c => c.id)); studio.records = [...studio.records.filter(c => !c.shared && !ids.has(c.id)), ...shared];
+    cacheCharacters(); renderCharacterList(); $('#characterListStatus').textContent = `みんなで使える共有キャラ：${shared.length}人` + (studio.canShare ? '' : '\n共有への新規保存は準備中です。端末には保存できます');
+  } catch (e) { if (request === studio.load) { $('#characterListStatus').textContent = `${e.message}\n保存済みの端末データでも遊べます`; studioButtons(); } }
+}
+function markAvatarEdited() {
+  if (studio.records.some(c => c.id === studio.id)) { studio.id = crypto.randomUUID(); studio.selectedId = null; }
+  studio.draft = AVATAR.clean(studio.draft);
+  $('#avatarStatus').textContent = '新しいキャラとして保存できます。元の共有キャラはそのまま残ります';
+  renderCharacterList(); updateStudioPreview();
+}
+function updateStudioPreview() {
+  $('#avatarPreviewName').textContent = `${studio.draft.name} #${studio.draft.number}`;
+  if (studio.preview) applyAvatar(studio.preview.player, studio.draft, TEAM.away);
+  studioButtons();
+}
+function renderPartOptions() {
+  const container = $('#partOptions'); container.replaceChildren();
+  for (const [index, label] of AVATAR.catalogs[studio.category].entries()) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+    button.setAttribute('aria-pressed', String(studio.draft[studio.category] === index));
+    button.addEventListener('click', () => { if (studio.saving) return; studio.draft[studio.category] = index; markAvatarEdited(); renderPartOptions(); });
+    container.append(button);
+  }
+}
+function refreshStudioFields() {
+  $('#avatarName').value = studio.draft.name; $('#avatarNumber').value = studio.draft.number;
+  $('#avatarColors').querySelectorAll('input').forEach(input => input.value = studio.draft[input.dataset.key]);
+  renderPartOptions(); updateStudioPreview();
+}
+function initStudioPreview() {
+  if (studio.preview) return;
+  try {
+    const view = new THREE.WebGLRenderer({ canvas: $('#avatarCanvas'), antialias: true, alpha: true });
+    view.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5)); view.outputEncoding = THREE.sRGBEncoding;
+    const stage = new THREE.Scene(); stage.add(new THREE.HemisphereLight(0xffffff, 0x71837d, 1));
+    const light = new THREE.DirectionalLight(0xfff2da, .8); light.position.set(-2,4,5); stage.add(light);
+    const player = makePlayer(TEAM.away); scene.remove(player); stage.add(player);
+    const cam = new THREE.PerspectiveCamera(38,1,.05,20); cam.position.set(0,1.05,3.3); cam.lookAt(0,.82,0);
+    studio.preview = { view, stage, player, cam }; updateStudioPreview();
+  } catch (e) { $('#avatarStatus').textContent = '3Dプレビューを表示できません。パーツの選択と保存はできます'; }
+}
+function renderAvatarPreview() {
+  if (!studio.open || !studio.preview) return;
+  const t = performance.now(); if (t - studio.lastRender < 33) return; studio.lastRender = t;
+  const p = studio.preview, canvas = $('#avatarCanvas'), w = Math.max(1,canvas.clientWidth), h = Math.max(1,canvas.clientHeight);
+  if (p.width !== w || p.height !== h) { p.view.setSize(w,h,false); p.cam.aspect = w/h; p.cam.updateProjectionMatrix(); p.width=w; p.height=h; }
+  p.player.rotation.y += (studio.turn - p.player.rotation.y) * .18; p.view.render(p.stage,p.cam);
+}
+function openCharacterStudio(pending = null) {
+  if (studio.open) return; studio.open = true; studio.pending = pending; studio.previousFocus = document.activeElement;
+  studio.draft = AVATAR.clean(chosenAvatar); studio.selectedId = chosenAvatarId;
+  studio.id = chosenAvatarId || crypto.randomUUID();
+  $('#characterStudio').hidden = false; $('#avatarStatus').textContent = '保存したキャラは全員共通。髪・顔はテクスチャで軽く描きます';
+  initStudioPreview(); refreshStudioFields(); renderCharacterList(); refreshSharedCharacters(); $('#avatarName').focus();
+}
+function closeCharacterStudio() {
+  studio.open = false; $('#characterStudio').hidden = true; studio.pending = null;
+  if (studio.previousFocus && studio.previousFocus.isConnected) studio.previousFocus.focus();
+}
+function rememberDraft() {
+  const record = { id: studio.id, appearance: AVATAR.clean(studio.draft), shared: false };
+  if (!studio.records.some(c => c.id === record.id)) studio.records.push(record);
+  studio.selectedId = record.id; cacheCharacters(); return record;
+}
+async function saveSharedCharacter() {
+  if (studio.saving) return;
+  const record = rememberDraft(); renderCharacterList();
+  if (studio.canShare === false) { $('#avatarStatus').textContent = 'この端末に保存しました。全員共通の保存はサーバー設定後に利用できます'; return; }
+  studio.saving = true; $('#characterStudio').querySelectorAll('input').forEach(input=>input.disabled=true); studioButtons(); $('#avatarStatus').textContent = '共有に保存しています…';
+  try {
+    const data = await characterRequest('POST', record);
+    const i = studio.records.findIndex(c => c.id === record.id); if (i >= 0) studio.records[i] = { id: data.character.id, appearance: AVATAR.clean(data.character.appearance), shared: true };
+    studio.canShare = true; cacheCharacters(); $('#avatarStatus').textContent = '共有に保存しました！次からは全員がこのキャラを選べます';
+    $('#characterListStatus').textContent = `みんなで使える共有キャラ：${studio.records.filter(c=>c.shared).length}人`;
+  } catch (e) { $('#avatarStatus').textContent = `この端末には保存済みです。${e.message}`; }
+  finally { studio.saving = false; $('#characterStudio').querySelectorAll('input').forEach(input=>input.disabled=false); renderCharacterList(); }
+}
+const partLabels = { hair:'髪 30', eyes:'目 24', brows:'眉 20', mouth:'口 24', paint:'顔の模様 12', pattern:'服の柄 8', hat:'帽子 4' };
+for (const [key,label] of Object.entries(partLabels)) {
+  const button=document.createElement('button'); button.type='button'; button.textContent=label; button.setAttribute('aria-pressed',String(key===studio.category));
+  button.addEventListener('click',()=>{studio.category=key;$('#partTabs').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));renderPartOptions();}); $('#partTabs').append(button);
+}
+const colorLabels={skin:'肌',hairColor:'髪・眉',eyeColor:'目',uniform:'ユニフォーム',hatColor:'帽子',accent:'模様・背番号'};
+for(const [key,label] of Object.entries(colorLabels)) {
+  const row=document.createElement('label'), input=document.createElement('input'); input.type='color'; input.dataset.key=key; input.value=studio.draft[key]; input.setAttribute('aria-label',label+'の色');
+  input.addEventListener('focus',()=>{studio.color=key;$('#colorPresets').setAttribute('aria-label',label+'の色プリセット');});
+  input.addEventListener('input',()=>{if(studio.saving)return;studio.draft[key]=input.value;studio.color=key;markAvatarEdited();});row.append(input,document.createTextNode(label));$('#avatarColors').append(row);
+}
+for(const color of AVATAR.colors) {
+  const button=document.createElement('button');button.type='button';button.style.backgroundColor=color;button.setAttribute('aria-label',color+'を選択');
+  button.addEventListener('click',()=>{if(studio.saving)return;studio.draft[studio.color]=color;markAvatarEdited();refreshStudioFields();});$('#colorPresets').append(button);
+}
+$('#avatarName').addEventListener('input',()=>{if(studio.saving)return;studio.draft.name=$('#avatarName').value;markAvatarEdited();});
+$('#avatarNumber').addEventListener('input',()=>{if(studio.saving)return;studio.draft.number=$('#avatarNumber').value.replace(/\D/g,'').slice(0,2);markAvatarEdited();});
+$('#avatarTurn').addEventListener('click',()=>studio.turn+=Math.PI);
+$('#avatarNew').addEventListener('click',()=>{if(studio.saving)return;studio.draft=AVATAR.clean(null);studio.id=crypto.randomUUID();studio.selectedId=null;refreshStudioFields();renderCharacterList();$('#avatarStatus').textContent='新しい選手を作ろう。122種類のパーツと自由な配色から選べます';});
+$('#avatarRandom').addEventListener('click',()=>{if(studio.saving)return;for(const [key,options] of Object.entries(AVATAR.catalogs))studio.draft[key]=Math.floor(Math.random()*options.length);for(const key of ['hairColor','eyeColor','uniform','hatColor','accent'])studio.draft[key]=AVATAR.colors[Math.floor(Math.random()*AVATAR.colors.length)];markAvatarEdited();refreshStudioFields();});
+$('#avatarRefresh').addEventListener('click',()=>{if(!studio.saving)refreshSharedCharacters();});
+$('#avatarSave').addEventListener('click',saveSharedCharacter);
+$('#avatarUse').addEventListener('click',()=>{if(studio.saving)return;rememberDraft();chosenAvatar=AVATAR.clean(studio.draft);chosenAvatarId=studio.id;cacheCharacters();$('#characterSummary').textContent=`選択中：${chosenAvatar.name} #${chosenAvatar.number}`;const action=studio.pending;closeCharacterStudio();if(action)action();});
+$('#characterBtn').addEventListener('click',()=>openCharacterStudio());$('#studioClose').addEventListener('click',closeCharacterStudio);
+$('#characterStudio').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();closeCharacterStudio();}
+  if(e.key==='Tab'){const items=[...$('#characterStudio').querySelectorAll('button,input')].filter(el=>!el.disabled&&el.offsetParent!==null);const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+});
+if(chosenAvatar)$('#characterSummary').textContent=`選択中：${chosenAvatar.name} #${chosenAvatar.number}`;
 
 toLobby();
 requestAnimationFrame(frame);

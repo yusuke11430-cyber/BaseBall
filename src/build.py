@@ -1,4 +1,4 @@
-# docs/index.html を src/ の3ファイルから組み立てる
+# docs/index.html を src/ の4ファイルから組み立てる
 #   python3 src/build.py
 import os
 here = os.path.dirname(os.path.abspath(__file__))
@@ -6,7 +6,9 @@ root = os.path.dirname(here)
 sh = open(os.path.join(here, 'shell.html'), encoding='utf-8').read()
 logic = open(os.path.join(here, 'logic.js'), encoding='utf-8').read()
 main = open(os.path.join(here, 'main.js'), encoding='utf-8').read()
-sh = sh.replace('/*LOGIC*/', logic).replace('/*MAIN*/', main)
+avatar = open(os.path.join(here, 'avatar.js'), encoding='utf-8').read()
+sh = sh.replace('/*LOGIC*/', logic).replace('/*AVATAR*/', avatar).replace('/*MAIN*/', main)
+open(os.path.join(root, 'server', 'avatar-schema.js'), 'w', encoding='utf-8').write(avatar)
 cut = sh.index('<canvas id="c"')
 head, body = sh[:cut], sh[cut:]
 body = body.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>',

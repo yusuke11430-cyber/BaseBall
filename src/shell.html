@@ -1,4 +1,4 @@
-<title>まるっと野球</title>
+<title>Super Hage BaseBall</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
@@ -176,6 +176,32 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
   .act{font-size:18px;min-width:120px}
 }
 @media (prefers-reduced-motion:reduce){.banner{transition:opacity .2s}.status .spin{animation:none}}
+.logo.brand{font-size:clamp(25px,7vw,38px);line-height:1.2;-webkit-text-stroke:1.7px var(--ink)}
+.character-entry{display:flex;align-items:center;gap:10px;padding:12px;border:2px dashed #c9c2ad;border-radius:12px;background:#fff7df}
+.character-entry p{margin:0;flex:1;font-size:13px;font-weight:800}
+.studio{position:fixed;inset:0;z-index:30;overflow:auto;background:rgba(16,30,48,.88);padding:20px;box-sizing:border-box}
+.studio-window{max-width:1060px;margin:0 auto;border:3px solid var(--ink);border-radius:24px;background:var(--paper);box-shadow:0 8px 0 #15263e;padding:22px;color:var(--ink)}
+.studio-head{display:flex;gap:16px;justify-content:space-between;align-items:center;margin-bottom:16px}
+.studio-head h2{font-family:var(--f-body);font-weight:800;font-size:26px;margin:0}.studio-head p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+.studio-body{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px}
+.character-list{max-height:440px;overflow:auto;display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.character-card{border:2px solid #cbd1d0;border-radius:12px;padding:10px;background:#fff;cursor:pointer;text-align:left;font:inherit;display:flex;gap:8px;align-items:center}
+.character-card[aria-pressed="true"]{border-color:var(--ink);background:#fff0bd;box-shadow:0 2px 0 var(--ink)}
+.character-card i{width:24px;height:24px;border:2px solid var(--ink);border-radius:50%;flex:none}.character-card span{font-size:11px;color:var(--muted)}
+.studio-main{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px}
+.studio-preview{background:linear-gradient(#dceef4,#f4e6c8);border:2px solid #bdc9cd;border-radius:18px;overflow:hidden;align-self:start}
+#avatarCanvas{display:block;width:100%;height:280px;touch-action:none}.preview-caption{padding:8px;text-align:center;font-weight:800;font-size:13px}
+.studio-fields{display:grid;grid-template-columns:1fr 80px;gap:8px}.studio-fields label{font-size:12px;font-weight:800}.studio-fields input{width:100%;box-sizing:border-box;margin-top:4px}
+.part-tabs{display:flex;flex-wrap:wrap;gap:5px;margin:14px 0 8px}
+.part-tabs button,.part-options button{border:2px solid #c5cecc;border-radius:8px;background:#fff;font:inherit;font-weight:800;font-size:12px;padding:7px;cursor:pointer}
+.part-tabs button[aria-pressed="true"],.part-options button[aria-pressed="true"]{background:var(--sun);border-color:var(--ink)}
+.part-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;max-height:235px;overflow:auto}
+.avatar-colors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:14px}.avatar-colors label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800}.avatar-colors input{width:30px;height:30px;border:0;padding:0;background:transparent;cursor:pointer}
+.color-presets{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.color-presets button{width:22px;height:22px;border:2px solid #8e999d;border-radius:50%;cursor:pointer}
+.studio-foot{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:18px;border-top:2px dashed #d0d4ca;padding-top:14px}
+.studio-status{font-size:12px;line-height:1.6;min-height:2em;color:var(--muted);margin:8px 0;white-space:pre-line}
+@media(max-width:850px){.studio-body{grid-template-columns:160px minmax(0,1fr)}.studio-main{grid-template-columns:1fr}.studio-preview{display:flex;align-items:center}#avatarCanvas{width:150px;height:190px}.studio-preview .preview-caption{flex:1}}
+@media(max-width:560px){.studio{padding:8px}.studio-window{padding:14px;border-radius:16px}.studio-head h2{font-size:20px}.studio-body{grid-template-columns:1fr;gap:10px}.character-list{max-height:125px;display:grid;grid-template-columns:1fr 1fr}.studio-foot .act{min-width:0;font-size:14px;padding:8px}.avatar-colors{grid-template-columns:repeat(2,1fr)}}
 </style>
 
 <canvas id="c" tabindex="0" aria-label="野球のフィールド"></canvas>
@@ -243,11 +269,12 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
 
 <div class="lobby" id="lobby">
   <div class="sticker card" id="home">
-    <h1 class="logo">まるっと<span>野球</span></h1>
+    <h1 class="logo brand">Super Hage<br><span>BaseBall</span></h1>
     <p class="tag">球種とコースで勝負する、3Dのオンライン対戦野球</p>
     <label class="fld" for="nick">名前
       <input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー">
     </label>
+    <div class="character-entry"><p id="characterSummary">試合前に共有キャラを選ぶか、新しく作れます</p><button class="act ghost small" id="characterBtn" type="button">キャラを見る・作る</button></div>
     <div class="fld" style="display:flex;flex-direction:column;gap:5px;font-weight:800;font-size:13px">イニング数
       <div class="seg" id="innSeg" role="group" aria-label="イニング数">
         <button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button>
@@ -268,7 +295,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
     <dl class="howto">
       <dt>投手</dt><dd>球種を選び、狙うコースをクリック。変化球は曲がる分も考えて</dd>
       <dt>球速</dt><dd>20〜1000km/hで自由に。速いほどスタミナを使い、遅いほど山なりに</dd>
-      <dt>打者</dt><dd>青い円は投球開始から到達位置を表示。黄色いカーソルを合わせてスイング。早いと引っ張り、遅いと流し打ち</dd>
+      <dt>打者</dt><dd>青い円は球が打者まで90%進むと到達位置を表示。黄色いカーソルを合わせてスイング。早いと引っ張り、遅いと流し打ち</dd>
     </dl>
     <p class="note">BGM・応援歌：ニコニ・コモンズ　／　3D表示：three.js</p>
   </div>
@@ -286,16 +313,36 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
     <div class="who" id="finWho"></div>
     <div class="score" id="finScore"></div>
     <div class="split" style="justify-content:center">
-      <button class="act" id="againBtn">もう一試合</button>
+      <button class="act" id="againBtn">キャラを選んでもう一試合</button>
       <button class="act ghost" id="backBtn">ロビーへ</button>
     </div>
     <p class="note" id="finNote" style="text-align:center"></p>
   </div>
 </div>
 
+<div class="studio" id="characterStudio" role="dialog" aria-modal="true" aria-labelledby="studioTitle" hidden>
+  <div class="studio-window">
+    <div class="studio-head"><div><h2 id="studioTitle">この試合の選手を決めよう</h2><p>みんなのキャラから選ぶ ／ 新しくつくる</p></div><button class="act ghost small" id="studioClose">戻る</button></div>
+    <div class="studio-body">
+      <aside><button class="act ghost small" id="avatarNew">＋ 新しくつくる</button><button class="act ghost small" id="avatarRefresh">一覧を更新</button><div class="character-list" id="characterList" aria-label="共有キャラ一覧"></div><p class="studio-status" id="characterListStatus" role="status"></p></aside>
+      <div><div class="studio-main">
+        <div class="studio-preview"><canvas id="avatarCanvas" aria-label="キャラの3Dプレビュー"></canvas><div class="preview-caption"><div id="avatarPreviewName"></div><button class="act ghost small" id="avatarTurn">前・後ろを回す</button></div></div>
+        <div>
+          <div class="studio-fields"><label>キャラ名<input class="txt" id="avatarName" maxlength="10" value="HAGE"></label><label>背番号<input class="txt" id="avatarNumber" maxlength="2" inputmode="numeric" value="7"></label></div>
+          <div class="part-tabs" id="partTabs" role="group" aria-label="パーツの種類"></div><div class="part-options" id="partOptions" role="group" aria-label="パーツを選ぶ"></div>
+          <div class="avatar-colors" id="avatarColors"></div><div class="color-presets" id="colorPresets" aria-label="選択中の色のプリセット"></div>
+        </div>
+      </div><p class="studio-status" id="avatarStatus" role="status"></p><div class="studio-foot"><button class="act ghost" id="avatarRandom">おまかせ作成</button><button class="act ghost" id="avatarSave">共有に保存</button><button class="act" id="avatarUse">このキャラを使う</button></div></div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /*LOGIC*/
+</script>
+<script>
+/*AVATAR*/
 </script>
 <script>
 /*MAIN*/

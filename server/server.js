@@ -1,9 +1,10 @@
-// まるっと野球：オンライン対戦の中継サーバー
+// Super Hage BaseBall：オンライン対戦の中継サーバー
 // 仕組み：部屋（4文字コード）ごとに、各プレイヤーの「状態」（投球データ・打撃結果・試合状況など）を
 // 同じ部屋の相手にそのまま中継するだけ。判定はすべて各プレイヤーの画面側で行う。
 'use strict';
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const { createCharacterStore, characterHandler } = require('./character-store');
 
 const PORT = process.env.PORT || 8080;
 // 接続を許すページの場所（カンマ区切り）。空ならどこからでも可
@@ -15,7 +16,9 @@ const MSG_PER_SEC = 60;        // 1人あたり1秒間に受け付けるメッ�
 const rooms = new Map();       // 部屋名 -> Set(ws)
 let seq = 1;
 
+const handleCharacters = characterHandler(createCharacterStore(), ALLOWED);
 const server = http.createServer((req, res) => {
+  if (req.url.split('?')[0] === '/api/characters') { handleCharacters(req, res); return; }
   // 起動確認用（ゲームのロビーがここを呼んで、休止中のサーバーを起こす）
   res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
   res.end('ok');
@@ -90,4 +93,4 @@ setInterval(() => {
   }
 }, 25000);
 
-server.listen(PORT, () => console.log(`まるっと野球サーバー起動: port ${PORT}`));
+server.listen(PORT, () => console.log(`Super Hage BaseBall server: port ${PORT}`));

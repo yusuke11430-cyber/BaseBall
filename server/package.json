@@ -1,10 +1,10 @@
 {
-  "name": "marutto-baseball-server",
+  "name": "super-hage-baseball-server",
   "version": "1.0.0",
   "private": true,
-  "description": "まるっと野球のオンライン対戦用中継サーバー",
+  "description": "Super Hage BaseBallの対戦中継・共有キャラ保存サーバー",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node server.js", "test": "node test-characters.js" },
   "engines": { "node": ">=18" },
   "dependencies": { "ws": "8.18.0" }
 }
