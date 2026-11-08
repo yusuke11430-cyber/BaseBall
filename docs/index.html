@@ -87,6 +87,12 @@ input.num{width:5.2em;padding:5px 8px;font-family:var(--f-display);font-weight:4
   padding:6px 16px;z-index:6;pointer-events:none;opacity:0;transition:opacity .15s}
 .call.show{opacity:1}
 
+.timing{position:fixed;left:50%;top:46%;transform:translateX(-50%);z-index:6;pointer-events:none;opacity:0;transition:opacity .12s;
+  padding:6px 14px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.timing.show{opacity:1}
+.timing b{font-family:var(--f-display);font-weight:400;font-size:20px}
+.timing span{font-size:12.5px;font-weight:800;color:var(--muted)}
+.timing.just b{color:#d18a00}.timing.early b{color:var(--home)}.timing.late b{color:var(--away)}.timing.far b{color:var(--muted)}
 /* 操作パネル */
 .panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:5;
   width:min(720px,calc(100% - 24px));box-sizing:border-box;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
@@ -206,6 +212,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
 <div class="sticker speed" id="speed" hidden></div>
 <div class="banner" id="banner"></div>
 <div class="sticker call" id="call"></div>
+<div class="sticker timing" id="timing" aria-live="polite"></div>
 
 <div class="sticker panel" id="panel" hidden>
   <div id="pitchUI" hidden>
@@ -1253,10 +1260,31 @@ function trySwing() {
   C.swingAt = t; C.impactAt = t + BB.SWING_LAG; C.swingY = C.cur.y;
   if (C.phase !== 'pitching' || C.out) return;               // 素振り
   const dt = C.impactAt - contactTime();
-  if (dt < -0.6) { C.swung = true; return; }
+  // 投げる前・球が来るずっと前・通り過ぎた後のスイングは素振り扱い（ストライクにしない）
+  if (t < C.t0 + C.W || dt < -0.3 || dt > 0.15) { timingNote(dt, null); return; }
   const o = BB.judge(C.pi, C.cur, dt, C.gs, seed(), myOpt()); o.g = C.gs.gid;
+  timingNote(dt, o);
   if (o.kind === 'whiff') { C.swung = true; return; }        // 空振りしても、球が通過するまで何度でも振れる
   C.out = o; NET.sendSw(o);
+}
+// スイングのタイミングと、ずれた方向を打者に見せる
+function timingNote(dt, o) {
+  const el = $('#timing'); clearTimeout(el._t);
+  let main, cls, sub = '';
+  if (!o) { main = dt < 0 ? '早すぎ（素振り）' : '遅すぎ（素振り）'; cls = 'far'; }
+  else {
+    const ms = Math.round(Math.abs(dt) * 1000);
+    if (Math.abs(dt) <= 0.02) { main = 'ジャスト！'; cls = 'just'; }
+    else if (dt < 0) { main = `早い ${ms}ms`; cls = 'early'; }
+    else { main = `遅い ${ms}ms`; cls = 'late'; }
+    if (o.kind === 'whiff' && Math.abs(dt) <= BB.TIMING_WIN) {
+      const at = BB.pitchPos(C.pi, BB.contactS(ST.dz)), dy = at.y - C.cur.y, dx = at.x - C.cur.x;
+      if (Math.abs(dy) / BB.MEET.ry >= Math.abs(dx) / BB.MEET.rx) sub = dy > 0 ? 'ボールの下を振った' : 'ボールの上を振った';
+      else sub = (dx > 0) === (handOf(ST) > 0) ? 'ボールの手前（内側）を振った' : 'ボールの奥（外側）を振った';
+    } else if (o.kind === 'whiff') sub = dt < 0 ? 'タイミングが早すぎ' : 'タイミングが遅すぎ';
+  }
+  el.innerHTML = `<b>${main}</b>${sub ? `<span>${sub}</span>` : ''}`; el.className = 'sticker timing show ' + cls;
+  el._t = setTimeout(() => el.classList.remove('show'), 1600);
 }
 function takePitch() { // 球が通過：振っていれば空振り、振っていなければ見逃し
   const o = BB.judge(C.pi, C.cur, null, C.gs, seed(), myOpt()); o.g = C.gs.gid;
