@@ -719,7 +719,7 @@ function startPitch(pi, windup) {
   C.out = null; C.swingAt = null; C.impactAt = null; C.resolved = false; C.waitNote = false; C.swung = false; C.buntTry = false; C.obsBunt = null;
   $('#speed').dataset.n = ''; duckBgm(true);
   if (role() === 'bat') status(''); else if (role() === 'watch') status('観戦中');
-  const sp = $('#speed'); sp.innerHTML = '<span class="pt">投球中</span>…'; show(sp, true);
+  const sp = $('#speed'); sp.innerHTML = '<span class="pt">投球中</span><span class="velocity">…</span>'; show(sp, true);
 }
 const plateTime = () => C.t0 + C.W + C.dur;
 const contactTime = () => C.t0 + C.W + C.dur * BB.contactS(ST.dz); // 立ち位置で、球をとらえる瞬間が変わる
@@ -799,7 +799,7 @@ function onPi(msg) {
 function resolve() {
   if (C.resolved) return; C.resolved = true;
   const o = C.out, newGs = BB.apply(C.gs, o, C.pi);
-  const sp = $('#speed'); sp.innerHTML = `<span class="pt">${BB.PITCHES[C.pi.type].name}${C.pi.short ? '（失速）' : ''}</span>${C.pi.kmh}<small>km/h</small>`;
+  const sp = $('#speed'); sp.innerHTML = `<span class="pt">${BB.PITCHES[C.pi.type].name}${C.pi.short ? '（失速）' : ''}</span><span class="velocity">${C.pi.kmh}<small>km/h</small></span>`;
   if (o.kind === 'foul' && o.bunt && C.gs.s >= 2) {
     // スリーバントは通常のファウル演出へ送らず、アウトを明示して次の打席へ進める。
     C.phase = 'call'; guess.visible = false; SFX.hit(o.ev);
@@ -979,7 +979,7 @@ function updatePitch(t) {
     else if (!C.out && r !== 'bat' && e > C.W + C.dur + 2.5 && !C.waitNote) { C.waitNote = true; status('<span class="spin"></span>相手の応答を待っています'); }
   }
   // 球速表示（リリース後）
-  const sp = $('#speed'); if (sp.dataset.n !== String(C.pi.n) && s > 0.15) { sp.dataset.n = C.pi.n; if (r !== 'bat') sp.innerHTML = `<span class="pt">${BB.PITCHES[C.pi.type].name}</span>${C.pi.kmh}<small>km/h</small>`; else sp.innerHTML = `${C.pi.kmh}<small>km/h</small>`; }
+  const sp = $('#speed'); if (sp.dataset.n !== String(C.pi.n) && s > 0.15) { sp.dataset.n = C.pi.n; sp.innerHTML = `<span class="pt">${r !== 'bat' ? BB.PITCHES[C.pi.type].name : '球速'}</span><span class="velocity">${C.pi.kmh}<small>km/h</small></span>`; }
 }
 
 function updateSwing(t) {
@@ -1065,7 +1065,7 @@ function updatePlay(t) {
 const pipCam = new THREE.PerspectiveCamera(40, 16 / 9, 0.1, 1200);
 const PIP = { on: false, dir: new THREE.Vector3(0, 0, -1), look: new THREE.Vector3() };
 function pipStart() {
-  PIP.on = true; show('#pip', true); show('#speed', false);
+  PIP.on = true; show('#pip', true);
   PIP.dir.set(0, 0, -1); pipCam.position.set(0, 2.2, 3.5); PIP.look.set(0, 1, -10);
 }
 function pipStop() { PIP.on = false; show('#pip', false); }
