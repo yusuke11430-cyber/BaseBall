@@ -278,7 +278,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
     <dl class="howto">
       <dt>投手</dt><dd>球種を選び、狙うコースをクリック。変化球は曲がる分も考えて</dd>
       <dt>球速</dt><dd>20〜1000km/hで自由に。速いほどスタミナを使い、遅いほど山なりに</dd>
-      <dt>打者</dt><dd>黄色いカーソルを青い円（だいたいの到達位置）に合わせてスイング。早いと引っ張り、遅いと流し打ち</dd>
+      <dt>打者</dt><dd>青い円は現在の軌道からの到達予想。変化に合わせて動く円を黄色いカーソルで追ってスイング。早いと引っ張り、遅いと流し打ち</dd>
     </dl>
     <p class="note">BGM・応援歌：ニコニ・コモンズ　／　3D表示：three.js</p>
   </div>
@@ -344,6 +344,8 @@ const BB = (() => {
   // 変化量 1〜7（4が標準）。大きく曲げるほどスタミナを使う（曲がりの大きい球種ほど負担も大きい）
   const BREAK_MIN = 1, BREAK_MAX = 7, BREAK_STD = 4;
   const noBreak = type => type === 'st'; // ストレートは変化量なし
+  // 各段階の曲がり幅と、隣り合う段階の差を従来の2倍にする。
+  const breakScale = (type, bl) => noBreak(type) ? 1 : 2 * clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) / BREAK_STD;
   function breakCost(type, bl) {
     if (noBreak(type)) return 0;
     const p = PITCHES[type] || PITCHES.st, f = clamp(Math.hypot(p.bx, p.by) / 0.3, 0.3, 1.5) * (p.knuckle ? 1.2 : 1);
@@ -369,8 +371,8 @@ const BB = (() => {
     }
     // ナックルは投げた本人にも行き先が読めない（揺れながら少しずれる）
     let kp = null;
-    if (p.knuckle) { const kr = rng((seed ^ 0x5bd1e995) >>> 0), km = bl / BREAK_STD; ax += gauss(kr) * 0.08 * km; ay += gauss(kr) * 0.08 * km; kp = [+(kr() * 6.28).toFixed(3), +(kr() * 6.28).toFixed(3)]; }
-    return { n, type, tx, ty, rq, bl, bm: bl / BREAK_STD, seed, ax: +ax.toFixed(3), ay: +ay.toFixed(3), kp, kmh, cost: Math.min(cost, Math.max(S, 0)), short };
+    if (p.knuckle) { const kr = rng((seed ^ 0x5bd1e995) >>> 0), km = breakScale(type, bl); ax += gauss(kr) * 0.08 * km; ay += gauss(kr) * 0.08 * km; kp = [+(kr() * 6.28).toFixed(3), +(kr() * 6.28).toFixed(3)]; }
+    return { n, type, tx, ty, rq, bl, bm: breakScale(type, bl), seed, ax: +ax.toFixed(3), ay: +ay.toFixed(3), kp, kmh, cost: Math.min(cost, Math.max(S, 0)), short };
   }
   function pitchDuration(pi) { return Math.abs(RELEASE.z - PLATE_Z) / (pi.kmh / 3.6); }
   // s: 0..1（リリース→本塁）。1を超えると捕手側へ伸びる
@@ -390,6 +392,22 @@ const BB = (() => {
     return { x, y, z };
   }
   function inZone(x, y) { return x >= ZONE.x0 - 0.035 && x <= ZONE.x1 + 0.035 && y >= ZONE.y0 - 0.035 && y <= ZONE.y1 + 0.035; }
+
+  // 直近の軌道を延長した到達予想。未来の変化は先読みせず、重力の山なりだけ補正する。
+  function predictContact(pi, s, sz = 0) {
+    const contact = contactS(sz), current = clamp(s, 0, contact);
+    const at = pitchPos(pi, current);
+    if (current >= contact) return at;
+    const prev = Math.max(0, current - 0.01), span = current - prev;
+    if (!span) return { x: at.x, y: at.y, z: RELEASE.z + (PLATE_Z - RELEASE.z) * contact };
+    const before = pitchPos(pi, prev), remaining = contact - current;
+    const T = pitchDuration(pi);
+    const gravity = u => { const v = Math.min(u, 1); return 0.5 * G * T * T * v * (1 - v); };
+    const y = at.y - gravity(current), by = before.y - gravity(prev);
+    return { x: at.x + (at.x - before.x) / span * remaining,
+      y: y + (y - by) / span * remaining + gravity(contact),
+      z: RELEASE.z + (PLATE_Z - RELEASE.z) * contact };
+  }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
   function flight(phi, la, ev, maxT = 7) {
@@ -601,7 +619,7 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, judgeBunt, contactS, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;
 
@@ -1469,9 +1487,9 @@ function updatePitch(t) {
     }
     ballShadow.visible = true; ballShadow.position.set(bp.x, 0.02, bp.z);
   }
-  // 打者にだけ、打撃判定と同じ位置を見せる（近づくほど円を小さくする）
+  // 打者にだけ、現在の軌道からの到達予想を見せる（変化すると予想も動く）
   if (r === 'bat' && C.phase === 'pitching' && !C.out && s > 0.02 && s < BB.contactS(ST.dz) + 0.02) {
-    const contact = BB.contactS(ST.dz), at = BB.pitchPos(C.pi, contact), k = 1 - Math.min(1, s / contact);
+    const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - Math.min(1, s / contact);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
   } else guess.visible = false;
@@ -1649,7 +1667,7 @@ function drawPad() {
   const [hx] = padXY(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.moveTo(hx - w * 0.12, h - 3 * dpr); g.lineTo(hx + w * 0.12, h - 3 * dpr); g.lineTo(hx, h - 10 * dpr); g.fill();
   // 変化の向き（狙った所へ、この向きから曲がってくる）
   const P = BB.PITCHES[C.pitchType], [ax, ay] = padXY(C.aim.x, C.aim.y, w, h);
-  const bm = BB.noBreak(C.pitchType) ? 1 : C.brk / BB.BREAK_STD;
+  const bm = BB.breakScale(C.pitchType, C.brk);
   if (P && !P.knuckle && Math.hypot(P.bx, P.by) * bm > 0.04) {
     const [sx, sy] = padXY(C.aim.x - P.bx * bm, C.aim.y - P.by * bm, w, h);
     g.setLineDash([5 * dpr, 4 * dpr]); g.strokeStyle = 'rgba(255,182,39,.9)'; g.lineWidth = 2 * dpr;

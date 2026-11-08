@@ -36,6 +36,8 @@ const BB = (() => {
   // 変化量 1〜7（4が標準）。大きく曲げるほどスタミナを使う（曲がりの大きい球種ほど負担も大きい）
   const BREAK_MIN = 1, BREAK_MAX = 7, BREAK_STD = 4;
   const noBreak = type => type === 'st'; // ストレートは変化量なし
+  // 各段階の曲がり幅と、隣り合う段階の差を従来の2倍にする。
+  const breakScale = (type, bl) => noBreak(type) ? 1 : 2 * clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) / BREAK_STD;
   function breakCost(type, bl) {
     if (noBreak(type)) return 0;
     const p = PITCHES[type] || PITCHES.st, f = clamp(Math.hypot(p.bx, p.by) / 0.3, 0.3, 1.5) * (p.knuckle ? 1.2 : 1);
@@ -61,8 +63,8 @@ const BB = (() => {
     }
     // ナックルは投げた本人にも行き先が読めない（揺れながら少しずれる）
     let kp = null;
-    if (p.knuckle) { const kr = rng((seed ^ 0x5bd1e995) >>> 0), km = bl / BREAK_STD; ax += gauss(kr) * 0.08 * km; ay += gauss(kr) * 0.08 * km; kp = [+(kr() * 6.28).toFixed(3), +(kr() * 6.28).toFixed(3)]; }
-    return { n, type, tx, ty, rq, bl, bm: bl / BREAK_STD, seed, ax: +ax.toFixed(3), ay: +ay.toFixed(3), kp, kmh, cost: Math.min(cost, Math.max(S, 0)), short };
+    if (p.knuckle) { const kr = rng((seed ^ 0x5bd1e995) >>> 0), km = breakScale(type, bl); ax += gauss(kr) * 0.08 * km; ay += gauss(kr) * 0.08 * km; kp = [+(kr() * 6.28).toFixed(3), +(kr() * 6.28).toFixed(3)]; }
+    return { n, type, tx, ty, rq, bl, bm: breakScale(type, bl), seed, ax: +ax.toFixed(3), ay: +ay.toFixed(3), kp, kmh, cost: Math.min(cost, Math.max(S, 0)), short };
   }
   function pitchDuration(pi) { return Math.abs(RELEASE.z - PLATE_Z) / (pi.kmh / 3.6); }
   // s: 0..1（リリース→本塁）。1を超えると捕手側へ伸びる
@@ -82,6 +84,22 @@ const BB = (() => {
     return { x, y, z };
   }
   function inZone(x, y) { return x >= ZONE.x0 - 0.035 && x <= ZONE.x1 + 0.035 && y >= ZONE.y0 - 0.035 && y <= ZONE.y1 + 0.035; }
+
+  // 直近の軌道を延長した到達予想。未来の変化は先読みせず、重力の山なりだけ補正する。
+  function predictContact(pi, s, sz = 0) {
+    const contact = contactS(sz), current = clamp(s, 0, contact);
+    const at = pitchPos(pi, current);
+    if (current >= contact) return at;
+    const prev = Math.max(0, current - 0.01), span = current - prev;
+    if (!span) return { x: at.x, y: at.y, z: RELEASE.z + (PLATE_Z - RELEASE.z) * contact };
+    const before = pitchPos(pi, prev), remaining = contact - current;
+    const T = pitchDuration(pi);
+    const gravity = u => { const v = Math.min(u, 1); return 0.5 * G * T * T * v * (1 - v); };
+    const y = at.y - gravity(current), by = before.y - gravity(prev);
+    return { x: at.x + (at.x - before.x) / span * remaining,
+      y: y + (y - by) / span * remaining + gravity(contact),
+      z: RELEASE.z + (PLATE_Z - RELEASE.z) * contact };
+  }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
   function flight(phi, la, ev, maxT = 7) {
@@ -293,6 +311,6 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, judgeBunt, contactS, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;

@@ -860,9 +860,9 @@ function updatePitch(t) {
     }
     ballShadow.visible = true; ballShadow.position.set(bp.x, 0.02, bp.z);
   }
-  // 打者にだけ、打撃判定と同じ位置を見せる（近づくほど円を小さくする）
+  // 打者にだけ、現在の軌道からの到達予想を見せる（変化すると予想も動く）
   if (r === 'bat' && C.phase === 'pitching' && !C.out && s > 0.02 && s < BB.contactS(ST.dz) + 0.02) {
-    const contact = BB.contactS(ST.dz), at = BB.pitchPos(C.pi, contact), k = 1 - Math.min(1, s / contact);
+    const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - Math.min(1, s / contact);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
   } else guess.visible = false;
@@ -1040,7 +1040,7 @@ function drawPad() {
   const [hx] = padXY(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.moveTo(hx - w * 0.12, h - 3 * dpr); g.lineTo(hx + w * 0.12, h - 3 * dpr); g.lineTo(hx, h - 10 * dpr); g.fill();
   // 変化の向き（狙った所へ、この向きから曲がってくる）
   const P = BB.PITCHES[C.pitchType], [ax, ay] = padXY(C.aim.x, C.aim.y, w, h);
-  const bm = BB.noBreak(C.pitchType) ? 1 : C.brk / BB.BREAK_STD;
+  const bm = BB.breakScale(C.pitchType, C.brk);
   if (P && !P.knuckle && Math.hypot(P.bx, P.by) * bm > 0.04) {
     const [sx, sy] = padXY(C.aim.x - P.bx * bm, C.aim.y - P.by * bm, w, h);
     g.setLineDash([5 * dpr, 4 * dpr]); g.strokeStyle = 'rgba(255,182,39,.9)'; g.lineWidth = 2 * dpr;
