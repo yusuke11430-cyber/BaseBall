@@ -40,16 +40,16 @@ assert.deepEqual(BB.apply(JSON.parse(JSON.stringify(twoStrikes)), { ...foul, n: 
 
 // UIの実際のresolveを実行し、通常のファウル演出でなくアウトとして進むことを確認。
 const main = fs.readFileSync(__dirname + '/main.js', 'utf8');
-// 予測円は打者まで90%未満では非表示、90%から表示。打者の前後移動も反映する。
+// 予測円はリリース後10%未満では非表示、10%から表示。打者の前後移動も反映する。
 const pitchStart = main.indexOf('function updatePitch(t) {');
 const markerStart = main.indexOf('  const s = (e - C.W) / C.dur;', pitchStart);
 const markerEnd = main.indexOf('  if (e < C.W)', markerStart);
 const markerCode = main.slice(markerStart, markerEnd);
-for (const dz of [-0.9, 0, 0.6]) for (const progress of [0, 0.5, 0.89, 0.9, 0.95, 1]) {
+for (const dz of [-0.9, 0, 0.6]) for (const progress of [-1, 0, 0.09, 0.1, 0.11, 0.5, 0.9, 1]) {
   const contact = BB.contactS(dz), marker = { visible: false, position: { set() {} }, scale: { set() {} } };
   vm.runInNewContext(markerCode, { BB, C: { W: 0, dur: 1, phase: 'pitching', out: null, pi }, ST: { dz },
     e: contact * progress, role: () => 'bat', guess: marker });
-  assert.equal(marker.visible, progress >= 0.9);
+  assert.equal(marker.visible, progress >= 0.1);
 }
 const resolve = main.slice(main.indexOf('function resolve() {'), main.indexOf('\nfunction finishPitch('));
 for (const outs of [0, 2]) {

@@ -936,8 +936,8 @@ function updatePitch(t) {
   }
   const s = (e - C.W) / C.dur;
   const r = role();
-  // 打者まで90%進んだ時点から、打撃判定と同じ到達位置を表示する。
-  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= BB.contactS(ST.dz) * 0.9 && s < BB.contactS(ST.dz) + 0.02) {
+  // リリース後、打者まで10%進んだ時点から到達位置を表示する。
+  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= BB.contactS(ST.dz) * 0.1 && s < BB.contactS(ST.dz) + 0.02) {
     const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
