@@ -634,7 +634,6 @@ function throwPitch() {
 function startPitch(pi, windup) {
   C.pi = pi; C.t0 = now(); C.W = windup; C.dur = BB.pitchDuration(pi); C.phase = 'pitching';
   C.out = null; C.swingAt = null; C.impactAt = null; C.resolved = false; C.waitNote = false; C.swung = false; C.buntTry = false; C.obsBunt = null;
-  C.guess = { x: (Math.random() - 0.5) * 0.14, y: (Math.random() - 0.5) * 0.1 };
   $('#speed').dataset.n = ''; duckBgm(true);
   if (role() === 'bat') status(''); else if (role() === 'watch') status('観戦中');
   const sp = $('#speed'); sp.innerHTML = '<span class="pt">投球中</span>…'; show(sp, true);
@@ -861,11 +860,10 @@ function updatePitch(t) {
     }
     ballShadow.visible = true; ballShadow.position.set(bp.x, 0.02, bp.z);
   }
-  // 打者にだけ、だいたいの到達位置を見せる（近づくほど正確に）
-  if (r === 'bat' && C.phase === 'pitching' && !C.out && s > 0.02 && s < 1.02) {
-    // だいたいの位置だけ：円は大きく、中心も最後まで少しずれたまま
-    const at = BB.pitchPos(C.pi, BB.contactS(ST.dz)), k = 1 - 0.6 * Math.min(1, s / 0.8);
-    guess.visible = true; guess.position.set(at.x + C.guess.x * k, at.y + C.guess.y * k, ST.dz);
+  // 打者にだけ、打撃判定と同じ位置を見せる（近づくほど円を小さくする）
+  if (r === 'bat' && C.phase === 'pitching' && !C.out && s > 0.02 && s < BB.contactS(ST.dz) + 0.02) {
+    const contact = BB.contactS(ST.dz), at = BB.pitchPos(C.pi, contact), k = 1 - Math.min(1, s / contact);
+    guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
   } else guess.visible = false;
   // 捕手のミット
