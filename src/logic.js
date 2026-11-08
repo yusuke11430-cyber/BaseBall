@@ -43,7 +43,8 @@ const BB = (() => {
     const p = PITCHES[type] || PITCHES.st, f = clamp(Math.hypot(p.bx, p.by) / 0.3, 0.3, 1.5) * (p.knuckle ? 1.2 : 1);
     return 0.09 * Math.pow(clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) - 1, 2) * f;
   }
-  function staminaCost(v, type, bl) { return +(speedCost(v) + (type ? breakCost(type, bl) : 0)).toFixed(2); }
+  // ナックルは球速分・変化量分を合わせた消費を2倍にする。
+  function staminaCost(v, type, bl) { return +((speedCost(v) + (type ? breakCost(type, bl) : 0)) * (type === 'kn' ? 2 : 1)).toFixed(2); }
   // 残りスタミナで出せる最高球速（スタミナ切れでも90km/hは出る）
   function affordable(S) { return 90 + 50 * Math.sqrt(Math.max(0, S)); }
   // 投手側で投球データを作る。受け取った側も同じ引数で計算し直すので、数値をごまかせない
@@ -154,7 +155,8 @@ const BB = (() => {
     if (Math.abs(dy) > 0.8 && r() < 0.5) { out.kind = 'foul'; out.phi = r() < 0.5 ? -60 : 60; out.la = dy > 0 ? 70 : -20; out.ev = 90; return out; }
     const ev = clamp(85 + 78 * q + clamp((pi.kmh - 130) * 0.18, -12, 14), 60, 172);
     out.phi = +phi.toFixed(1); out.la = +la.toFixed(1); out.ev = +ev.toFixed(1);
-    if (Math.abs(phi) > 45 || la < -12) { out.kind = 'foul'; return out; }
+    // 下向きの打球もフェア方向ならゴロ。描画に使う方向と判定をそろえる。
+    if (Math.abs(out.phi) > 45) { out.kind = 'foul'; return out; }
     out.kind = 'inplay';
     out.result = fieldResult(phi, la, ev, gs, r);
     return out;
@@ -172,7 +174,7 @@ const BB = (() => {
     const la = -6 + dy * 30 + gauss(r) * 4;
     const phi = hand * (rel * 55) + gauss(r) * 10;
     out.phi = +phi.toFixed(1); out.la = +la.toFixed(1); out.ev = +ev.toFixed(1);
-    if (Math.abs(phi) > 45 || la < -20) { out.kind = 'foul'; return out; }
+    if (Math.abs(out.phi) > 45) { out.kind = 'foul'; return out; }
     out.kind = 'inplay';
     const runners = gs.bases[0] + gs.bases[1] + gs.bases[2];
     if (la > 24) out.result = 'fout';                                    // 小フライ
@@ -283,7 +285,7 @@ const BB = (() => {
     // サヨナラ
     if (!gs.top && gs.inning >= gs.innings && gs.score.home > gs.score.away) { gs.over = true; msg += ' サヨナラ!'; }
     if (gs.outs >= 3 && !gs.over) {
-      gs.sta[fld] = +(gs.sta[fld] + (STA_MAX - gs.sta[fld]) * 0.75).toFixed(2); // 守備を終えた投手は減った分の75%を回復
+      gs.sta[fld] = +(gs.sta[fld] + (STA_MAX - gs.sta[fld]) * 0.30).toFixed(2); // 守備を終えた投手は減った分の30%を回復
       gs.outs = 0; gs.bases = [0, 0, 0]; resetCount();
       if (gs.top) {
         if (gs.inning >= gs.innings && gs.score.home > gs.score.away) gs.over = true;

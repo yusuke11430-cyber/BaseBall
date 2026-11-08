@@ -743,7 +743,12 @@ function resolve() {
   if (C.resolved) return; C.resolved = true;
   const o = C.out, newGs = BB.apply(C.gs, o, C.pi);
   const sp = $('#speed'); sp.innerHTML = `<span class="pt">${BB.PITCHES[C.pi.type].name}${C.pi.short ? '（失速）' : ''}</span>${C.pi.kmh}<small>km/h</small>`;
-  if (o.kind === 'inplay' || o.kind === 'foul') startPlay(o, newGs);
+  if (o.kind === 'foul' && o.bunt && C.gs.s >= 2) {
+    // スリーバントは通常のファウル演出へ送らず、アウトを明示して次の打席へ進める。
+    C.phase = 'call'; guess.visible = false; SFX.hit(o.ev);
+    banner('スリーバント失敗', 'out'); call('スリーバント失敗'); call2('k');
+    finishPitch(newGs, 1.9);
+  } else if (o.kind === 'inplay' || o.kind === 'foul') startPlay(o, newGs);
   else {
     C.phase = 'call'; SFX.mitt();
     const strikeOut = /三振/.test(newGs.msg), walk = /フォア/.test(newGs.msg);
