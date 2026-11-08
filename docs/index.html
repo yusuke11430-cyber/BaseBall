@@ -1883,7 +1883,7 @@ const newCode = () => Array.from({ length: 4 }, () => CODE_CH[(Math.random() * C
 async function goOnline(code, create) {
   if (!ROOM) return;
   leaveRoom(); C.token++;
-  NET.mode = 'online'; NET.create = create; NET.code = code; NET.seen = new Set(); C.seat = null; C.gs = null; C.pendingPi = null;
+  NET.mode = 'online'; NET.create = create; NET.code = code; NET.seen = new Set(); NET.joinFinal = false; C.seat = null; C.gs = null; C.pendingPi = null;
   show('#home', false); show('#wait', true); $('#waitCode').textContent = code; $('#copyNote').textContent = '';
   $('#waitStatus').innerHTML = ROOM.remote ? '<span class="spin"></span>対戦サーバーに接続しています（休止中だと最大1分ほど）' : '<span class="spin"></span>接続しています';
   try { NET.room = await ROOM.join('marutto-' + code.toLowerCase()); }
@@ -1908,12 +1908,21 @@ function leaveRoom() {
 function others() { return NET.room ? NET.room.peers().filter(p => !p.sameTab && p.kind === 'viewer') : []; }
 function assignSeat(final) {
   if (C.seat || !NET.room) return;
+  if (final) NET.joinFinal = true;
   const ps = others(), hasH = ps.some(p => p.presence && p.presence.seat === 'home'), hasA = ps.some(p => p.presence && p.presence.seat === 'away');
   let seat = null;
   if (hasH && !hasA) seat = 'away'; else if (!hasH && hasA) seat = 'home'; else if (hasH && hasA) seat = 'spec';
-  if (!seat) { if (final) $('#waitStatus').innerHTML = '<span class="spin"></span>この部屋にはまだ誰もいません。コードが合っているか確認してください'; return; }
-  C.seat = seat; NET.room.presence({ seat }).catch(() => { });
+  else if (NET.joinFinal) {
+    // まだ誰もホストでない：両方が「部屋に入る」を押した場合も、先に入った方（IDの小さい方）がホストになる
+    const me = NET.room.peers().find(p => p.sameTab), waiting = ps.filter(p => !(p.presence && p.presence.seat));
+    if (!waiting.length || (me && waiting.every(p => String(me.peer) < String(p.peer)))) seat = 'home';
+  }
+  if (!seat) { if (final) $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています（同じコードで「部屋に入る」を押してもらえばOK）'; return; }
+  C.seat = seat;
+  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
+  NET.room.presence(patch).catch(() => { });
   if (seat === 'spec') $('#waitStatus').innerHTML = '<span class="spin"></span>観戦モードで入りました';
+  if (seat === 'home') handlePeers(); // 相手がもう来ていれば、すぐ試合を始める
 }
 function maybeAdopt(g, fromSeat) {
   if (!g || C.phase === 'pitching' || C.phase === 'play' || C.phase === 'call') return;
