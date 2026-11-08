@@ -754,7 +754,7 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
       const aisle = aisles && Math.floor(u / 32) !== Math.floor((u + len) / 32);
       const bucket = buckets[aisle ? 2 : material], b = bucket.pos.length / 3;
       bucket.pos.push(...ringPoint(i, d1, y1), ...ringPoint(j, d1, y1), ...ringPoint(j, d2, y2), ...ringPoint(i, d2, y2));
-      bucket.uv.push(u / 14, row / 32, (u + len) / 14, row / 32, (u + len) / 14, (row + 1) / 32, u / 14, (row + 1) / 32);
+      bucket.uv.push(u / 36, row / 32, (u + len) / 36, row / 32, (u + len) / 36, (row + 1) / 32, u / 36, (row + 1) / 32);
       bucket.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); u += len;
     }
   }
@@ -766,7 +766,8 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   for (let row = 0; row < 28; row++) {
     if (row === 14) { band(depth, height, depth + 2.6, height, 2); depth += 2.6; }
     band(depth, height, depth + 1.1, height, 0, row, true); depth += 1.1;
-    band(depth, height, depth, height + 0.64, 1); height += 0.64;
+    // 打者の低い視点から見える正面に観客を描き、通路は階段としてつなぐ。
+    band(depth, height, depth, height + 0.64, 1, row, true); height += 0.64;
   }
   band(depth, height, depth + 2.2, height, 2); depth += 2.2;
   // 裏側・下面・最前列も閉じ、ロビーや打球カメラからも空洞が見えない構造にする。
@@ -776,8 +777,9 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   // 最上段の立ち上がりと笠木。
   band(depth, height, depth, height + 1.1, 3);
   band(depth - 0.15, height + 1.1, depth + 0.15, height + 1.1, 2);
-  const standMaterials = [new THREE.MeshLambertMaterial({ map: crowd, side: THREE.DoubleSide }),
-    M('#748f9b'), M('#d9d9c9'), M('#bac8c7'), wallMat, padTop];
+  const standMaterials = [M('#376f8a'),
+    new THREE.MeshLambertMaterial({ map: crowd, side: THREE.DoubleSide, emissive: 0x152633, emissiveIntensity: 0.25 }),
+    M('#d9d9c9'), M('#bac8c7'), wallMat, padTop];
   buckets.forEach((b, i) => {
     const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2)); geometry.setIndex(b.idx); geometry.computeVertexNormals();
