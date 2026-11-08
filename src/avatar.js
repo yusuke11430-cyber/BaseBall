@@ -21,40 +21,73 @@ const AVATAR = (() => {
   }
   function paintHead(g, w, h, value) {
     const a = clean(value); g.clearRect(0,0,w,h); g.fillStyle = a.skin; g.fillRect(0,0,w,h);
-    // 後頭部まで塗る。髪は頭のテクスチャだけで表現する。
-    if (a.hair && ![21,22,23].includes(a.hair)) { g.fillStyle = a.hairColor; g.fillRect(0,0,w,h * (a.hair === 29 ? 0.15 : 0.3)); }
+    // 球のUV全体で髪の範囲を変える。細い髪型まで共通のヘアキャップで覆わない。
+    const n = a.hair;
+    g.fillStyle = a.hairColor;
+    if ([10,11].includes(n)) {
+      const band = n === 10 ? .065 : .025;
+      for (const u of [.25,.75]) g.fillRect(w*(u-band),0,w*band*2,h*.38);
+    } else if (n === 24 || n === 29) {
+      // 頭頂部を残し、左右から後頭部にだけ毛を生やす。
+      g.fillRect(w*.48,h*.29,w*.54,h*(n===24?.27:.13));
+      g.fillRect(0,h*.29,w*.06,h*(n===24?.27:.13));
+      g.fillRect(w*.44,h*.29,w*.06,h*(n===24?.27:.13));
+    } else if (n && ![21,22,23].includes(n)) {
+      const depth = n===1 ? .22 : n===2 ? .27 : n===12 ? .56 : n===13 ? .43 : n===17 ? .23 : .32;
+      g.fillRect(0,0,w,h*depth);
+    }
     g.save(); g.translate(w * 0.25, h * 0.52); g.scale(w * 0.23, h * 0.42);
     const line = (points, color, width = 0.035) => { g.strokeStyle = color; g.lineWidth = width; g.lineCap = 'round'; g.beginPath(); points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y)); g.stroke(); };
     const ellipse = (x,y,rx,ry,color) => { g.fillStyle=color; g.beginPath(); g.ellipse(x,y,rx,ry,0,0,Math.PI*2); g.fill(); };
     if (a.hair) {
-      const n = a.hair; g.fillStyle = a.hairColor;
+      // 共通の後頭部の塗りを前面から消してから、専用の生え際を描く。
+      g.fillStyle = a.skin; g.fillRect(-1.1,-1.3,2.2,2.5);
+      g.fillStyle = a.hairColor;
       if ([21,22,23].includes(n)) {
-        for(let i=0;i<(n===21?3:n===22?1:5);i++) line([[i*.12-.12,-.72],[i*.13-.16,-1.05],[i*.13-.05,-1.13]],a.hairColor,.06);
+        for(let i=0;i<(n===21?3:n===22?1:5);i++) line([[i*.19-(n===22?0:.2),-.64],[i*.2-(n===22?.1:.28),-1.04],[i*.2+(n===22?.16:-.08),-1.2]],a.hairColor,n===23?.13:.065);
       } else if (n===24) {
-        g.fillRect(-1,-.9,.25,.7); g.fillRect(.75,-.9,.25,.7);
+        g.fillRect(-1.1,-.55,.35,.95); g.fillRect(.75,-.55,.35,.95);
+      } else if (n===10 || n===11) {
+        const half=n===10?.29:.11;
+        g.fillRect(-half,-1.3,half*2,1.04);
+        line([[-half,-.65],[0,-.3],[half,-.65]],a.hairColor,.08);
+      } else if (n===29) {
+        g.fillRect(-1.1,-.55,.22,.3); g.fillRect(.88,-.55,.22,.3);
       } else {
-        const count = [1,2].includes(n)?20:4+n%6;
+        const count = [1,2].includes(n)?24:48;
         g.beginPath(); g.moveTo(-1.1,-1.3); g.lineTo(1.1,-1.3); g.lineTo(1.1,-.72);
         for(let i=0;i<=count;i++) {
           const x=1.1-i*2.2/count; let y=-.7;
-          if(n===1||n===2) y=-.9+(n===2?.12:0);
-          else if([3,14].includes(n)) y=(n===14?-.18:-.38)-.55*(x+1.1)/2.2;
-          else if([4,15].includes(n)) y=(n===15?-.73:-.93)+.55*(x+1.1)/2.2;
-          else if(n===5) y=-.55-.35*(1-Math.abs(x));
-          else if(n===16||n===17) y=-.25-(n===17?.7:.42)*(1-Math.abs(x));
-          else if(n===25) y=-.62+.3*Math.cos(x*Math.PI);
-          else if(n===26) y=-.8+.6*(1-Math.abs(x));
-          else if(n===6) y=-.48;
-          else if([10,11].includes(n)) y=Math.abs(x)<(n===11?.18:.38)?-.2:-.95;
-          else if(n===12||n===13) y=n===13?-.5+.25*Math.cos(x*1.3):-.25;
-          else if(n===18||n===19||n===27) y=(n===27?-.38:-.55)+.16*Math.sin(i*(n===19?1.3:n===27?1.7:2.5));
-          else if(n===20) y=-.92+(i%2?.2:0);
-          else if(n===29) y=-1.02+.12*Math.abs(x);
-          else y=-.65+(i%2? .15+(n%4)*.08:0);
+          if(n===1||n===2) y=n===1?-.61:-.47;
+          else if(n===3||n===4) y=-.55+(n===3?-x:x)*.34;
+          else if(n===14||n===15) y=-.31+(n===14?-x:x)*.53;
+          else if(n===5) y=-.92+.68*Math.min(1,Math.abs(x)*2.2);
+          else if(n===16||n===17) y=-.31-(n===17?.83:.5)*Math.sin(Math.min(1,Math.abs(x))*Math.PI);
+          else if(n===25) y=-.75+.52*Math.pow(Math.sin(x*Math.PI),2);
+          else if(n===26) y=-.92+.67*(1-Math.min(1,Math.abs(x)));
+          else if(n===6) y=-.31;
+          else if(n===7) y=-.58+.32*(1-Math.abs(((x+1.1)*4)%2-1));
+          else if(n===8) y=-.67+.24*Math.max(0,Math.cos(x*18));
+          else if(n===9) y=-.56+.46*Math.max(0,Math.cos(x*11));
+          else if(n===12) y=Math.abs(x)>.65?.4:-.3;
+          else if(n===13) y=-.04-.55*Math.pow(Math.abs(x),2);
+          else if(n===18) y=-.3+.15*Math.cos(x*25);
+          else if(n===19) y=-.45+.2*Math.sin(x*7);
+          else if(n===20) y=-.86+.24*Math.max(0,Math.cos(x*17));
+          else if(n===27) y=-.21+.1*Math.cos(x*16);
+          else if(n===28) y=-.7+.38*(1-Math.abs(((x+1.1)*2)%2-1));
           g.lineTo(x,y);
         }
-        g.closePath(); g.fill();
-        if(n===1||n===2) for(let i=0;i<45;i++) ellipse(Math.sin(i*7.1)*.9,-.9+Math.cos(i*2.3)*.12,.009,.012,a.skin);
+        g.closePath(); g.globalAlpha=n===1?.55:1; g.fill(); g.globalAlpha=1;
+        // 分け目と毛束も太めに描き、小さな試合キャラでも読めるようにする。
+        if([3,4,5,14,15,28].includes(n)) {
+          const part=n===5?0:([3,14].includes(n)?.42:-.42);
+          line([[part*.5,-1.22],[part,-.95],[part,-.65]],a.skin,.07);
+        }
+        if(n===1||n===2) for(let i=0;i<180;i++) ellipse(Math.sin(i*7.1)*1.04,-1.21+(i%15)*.04,.017,n===1?.019:.03,a.skin);
+        if([18,19,27].includes(n)) for(let i=0;i<9;i++) {
+          const x=-.88+i*.22; line([[x,-.92],[x-.06,-.73],[x+.04,-.58]],a.skin,.025);
+        }
       }
     }
     const eyeType=Math.floor(a.eyes/4), eyeSize=[1,1.25,.78,.62][a.eyes%4];
