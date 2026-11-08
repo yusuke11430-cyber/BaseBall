@@ -90,6 +90,7 @@ const BB = (() => {
   function predictContact(pi, s, sz = 0) {
     const contact = contactS(sz), at = pitchPos(pi, contact);
     if (noBreak(pi.type) || s >= contact) return at;
+    const targetX = at.x, targetY = at.y;
     const p = PITCHES[pi.type], m = pi.bm || 1, t = clamp(s, 0, contact), end = Math.min(contact, 1), seen = Math.min(t, 1);
     // 観測済みの曲がりと現在の変化速度で、残り区間を外挿する（重力は織り込み済み）。
     const remaining = Math.pow(end, p.k) - Math.pow(seen, p.k) - p.k * Math.pow(seen, p.k - 1) * (end - seen);
@@ -101,6 +102,10 @@ const BB = (() => {
       const forecast = (frequency, phase) => 0.06 * m * (wave(seen, frequency, phase) + slope(seen, frequency, phase) * (end - seen) - wave(end, frequency, phase));
       at.x += forecast(13, pi.kp[0]); at.y += forecast(10, pi.kp[1]);
     }
+    // 予測円だけを穏やかにする。小さい変化は1/4、大きな変化も約2球分以内に収める。
+    // 滑らかに制限し、変化量1〜7の差と接触時の一致を保つ。
+    const dx = at.x - targetX, dy = at.y - targetY, gain = 0.25 / (1 + 0.25 * Math.hypot(dx, dy) / 0.28);
+    at.x = targetX + dx * gain; at.y = targetY + dy * gain;
     return at;
   }
 

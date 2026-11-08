@@ -21,6 +21,7 @@ for(const type of BB.PITCH_KEYS) for(let bl=1;bl<=7;bl++) for(const speed of [20
     const predicted=BB.predictContact(pi,contact*fraction,sz);
     assert.ok(Object.values(predicted).every(Number.isFinite));
     assert.ok(Math.abs(predicted.z-at.z)<1e-12);
+    assert.ok(Math.hypot(predicted.x-at.x,predicted.y-at.y)<0.28+1e-12);
   }
   predictionCases++;
 }
@@ -32,6 +33,9 @@ for(const type of BB.PITCH_KEYS.filter(t=>!['st','kn'].includes(t))) for(const s
     const initial=BB.predictContact(pi,contact*.1,sz), mid=BB.predictContact(pi,contact*.5,sz), late=BB.predictContact(pi,contact*.9,sz);
     const error=p=>Math.hypot(p.x-end.x,p.y-end.y), distance=error(initial);
     assert.ok(distance>previous);previous=distance;
+    const p=BB.PITCHES[type],t=Math.min(contact*.1,1),endS=Math.min(contact,1);
+    const raw=pi.bm*Math.hypot(p.bx,p.by)*(Math.pow(endS,p.k)-Math.pow(t,p.k)-p.k*Math.pow(t,p.k-1)*(endS-t));
+    assert.ok(distance<=raw*.25+1e-12);
     assert.ok(error(mid)<distance&&error(late)<error(mid));
     assert.ok((end.x-initial.x)*BB.PITCHES[type].bx>=0);
     assert.ok((end.y-initial.y)*BB.PITCHES[type].by>=0);
