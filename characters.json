@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "characters": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "appearance": {
+        "name": "HAGE",
+        "number": "7",
+        "hair": 0,
+        "eyes": 0,
+        "brows": 1,
+        "mouth": 0,
+        "paint": 0,
+        "pattern": 0,
+        "hat": 0,
+        "skin": "#f3c9a1",
+        "hairColor": "#30251e",
+        "eyeColor": "#24262e",
+        "uniform": "#e4572e",
+        "hatColor": "#b8361a",
+        "accent": "#fff6df"
+      },
+      "createdAt": "2026-11-08T00:00:00.000Z"
+    }
+  ]
+}
