@@ -267,16 +267,35 @@ const BUNT_Q = { R: qDir(1, 0.02, 0), L: qDir(-1, 0.02, 0) };
 // ST: 自分が打つときの構え（lh=左打席, x=打席内の左右位置, dz=前後 -が投手寄り, b=バント）
 const ST = { lh: false, x: -0.95, dz: 0, b: false };
 let VIS = { lh: false, x: -0.95, dz: 0, b: false };   // 画面に出している打者の構え
+let stanceTarget = null, stanceFrameAt = null;
 const handOf = st => st.lh ? -1 : 1;
 const keysOf = st => st.lh ? SWING_KEYS_L : SWING_KEYS;
 const batHome = st => new THREE.Vector3(st.x + handOf(st) * 0.33, 1.02, 0.08 + st.dz);
-function applyStance(st) {
-  VIS = { lh: !!st.lh, x: BB.clamp(+st.x || -0.95, -1.45, 1.45), dz: BB.clamp(+st.dz || 0, -0.9, 0.6), b: !!st.b };
-  if (Math.abs(VIS.x) < 0.55) VIS.x = VIS.lh ? 0.95 : -0.95;
-  if ((VIS.x > 0) !== VIS.lh) VIS.x = -VIS.x;
+function applyStance(st, smooth = false) {
+  const next = { lh: !!st.lh, x: BB.clamp(Number.isFinite(+st.x) ? +st.x : -0.95, -1.45, 1.45), dz: BB.clamp(Number.isFinite(+st.dz) ? +st.dz : 0, -0.9, 0.6), b: !!st.b };
+  if (Math.abs(next.x) < 0.55) next.x = next.lh ? 0.95 : -0.95;
+  if ((next.x > 0) !== next.lh) next.x = -next.x;
+  // 打席の切替は瞬時に。通常の相手の移動だけを補間する。
+  if (smooth && next.lh === VIS.lh) { stanceTarget = next; VIS.b = next.b; return; }
+  stanceTarget = null; VIS = next; placeStance();
+}
+function placeStance() {
   batter.position.set(VIS.x, 0, -0.05 + VIS.dz);
   if (C.swingAt === null) { batter.rotation.y = VIS.lh ? -Math.PI / 2 : Math.PI / 2; batPivot.position.copy(batHome(VIS)); batPivot.quaternion.copy(keysOf(VIS)[0][1]); }
   plane.constant = -VIS.dz; cursor.position.z = VIS.dz;
+}
+function updateStance(t) {
+  const dt = stanceFrameAt === null ? 0 : BB.clamp(t - stanceFrameAt, 0, .05); stanceFrameAt = t;
+  // 自分の移動は描画フレームに合わせ、処理落ちや高Hz画面で速度が変わらないようにする。
+  if (role() === 'bat' && !['play','call','lobby','over'].includes(C.phase)) {
+    const dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), dz = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+    if (dx || dz) moveStance(dx * .75 * dt, dz * .75 * dt);
+  } else if (stanceTarget && !['play','call','lobby','over'].includes(C.phase)) {
+    const k = 1 - Math.exp(-dt / .055);
+    VIS.x += (stanceTarget.x - VIS.x) * k; VIS.dz += (stanceTarget.dz - VIS.dz) * k;
+    if (Math.abs(stanceTarget.x - VIS.x) + Math.abs(stanceTarget.dz - VIS.dz) < .0001) { VIS.x = stanceTarget.x; VIS.dz = stanceTarget.dz; }
+    placeStance();
+  }
 }
 
 // ボール・影・ゾーン・カーソル
@@ -887,6 +906,7 @@ function frame() {
 }
 function step() {
   const t = now(), dt = Math.min(0.05, t - last); last = t;
+  updateStance(t);
   if (C.phase === 'pitching' || C.phase === 'call' || (C.phase === 'play' && C.play && C.play.o.kind === 'foul')) updatePitch(t);
   if (C.phase === 'play') updatePlay(t);
   updateSwing(t);
@@ -1185,8 +1205,19 @@ function switchBox() {
   ST.lh = !ST.lh; ST.x = -ST.x; applyStance(ST); setCursor(-C.cur.x, C.cur.y); sendStance(); SFX.select();
   call(ST.lh ? '左打席' : '右打席');
 }
-let stT = 0;
-function sendStance() { clearTimeout(stT); stT = setTimeout(() => NET.sendSt({ lh: ST.lh, x: +ST.x.toFixed(2), dz: +ST.dz.toFixed(2), b: ST.b }), 60); }
+let stT = 0, stSentAt = -Infinity, stLast = '';
+function sendStance() {
+  if (NET.mode !== 'online' || role() !== 'bat' || stT) return;
+  const flush = () => {
+    stT = 0;
+    if (NET.mode !== 'online' || role() !== 'bat' || !C.gs) return;
+    const st = { g: C.gs.gid, lh: ST.lh, x: +ST.x.toFixed(3), dz: +ST.dz.toFixed(3), b: ST.b }, key = JSON.stringify(st);
+    if (key === stLast) return;
+    stLast = key; stSentAt = performance.now(); NET.sendSt(st);
+  };
+  const wait = 60 - (performance.now() - stSentAt);
+  if (wait <= 0) flush(); else stT = setTimeout(flush, wait);
+}
 setAim(0, 0.8); setCursor(0, 0.8);
 let drag = null;
 canvas.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -1234,10 +1265,8 @@ addEventListener('keydown', ev => {
   if (C.phase === 'aim' && (ev.key === 'e' || ev.key === 'E')) setBreak(C.brk + 1);
 });
 addEventListener('keyup', ev => { keys[ev.key] = false; keys[ev.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 setInterval(() => {
-  // WASD：打席の中で立ち位置を動かす（W=投手寄り、S=捕手寄り、A/D=左右）
-  const mx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), mz = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
-  if ((mx || mz) && role() === 'bat' && C.phase !== 'play' && C.phase !== 'call' && C.phase !== 'lobby') moveStance(mx * 0.012, mz * 0.012);
   const dx = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0), dy = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
   if (!dx && !dy) return; const s = 0.022;
   if (C.phase === 'aim') setAim(C.aim.x + dx * s, C.aim.y + dy * s); else if (role() === 'bat') setCursor(C.cur.x + dx * s, C.cur.y + dy * s);
@@ -1437,6 +1466,7 @@ async function goOnline(code, create) {
   if (!create) NET.joinTimer = setTimeout(() => { assignSeat(true); }, 1600);
 }
 function leaveRoom() {
+  clearTimeout(stT); stT = 0; stSentAt = -Infinity; stLast = ''; stanceTarget = null; stanceFrameAt = null;
   clearTimeout(NET.joinTimer);
   if (NET.unsub) { try { NET.unsub(); } catch (e) { } NET.unsub = null; }
   if (NET.room) { NET.room.leave().catch(() => { }); NET.room = null; }
@@ -1488,9 +1518,10 @@ function handlePeers(peers) {
   if (opp && opp.presence) maybeAdopt(opp.presence.gs, opp.presence.seat);
   // 相手（打者）の構え・打席・バントを表示に反映
   const batP = C.gs ? (BB.batSide(C.gs) === 'home' ? home : away) : null;
-  if (batP && batP.presence && batP.presence.st && typeof batP.presence.st === 'object' && role() !== 'bat') {
+  if (batP && batP.presence && batP.presence.st && typeof batP.presence.st === 'object' &&
+      (!batP.presence.st.g || batP.presence.st.g === C.gs.gid) && role() !== 'bat') {
     const st = batP.presence.st; NET.oppSt = { lh: !!st.lh, x: +st.x || -0.95, dz: +st.dz || 0, b: !!st.b };
-    if (C.phase !== 'play' && C.phase !== 'call') { applyStance(NET.oppSt); drawPad(); }
+    if (C.phase !== 'play' && C.phase !== 'call') { applyStance(NET.oppSt, true); drawPad(); }
   }
   if (C.seat === 'spec' && home && home.presence) maybeAdopt(home.presence.gs, 'home');
   // 現在の打者からのモーションだけ採用し、結果より先に反映する。
