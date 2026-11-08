@@ -42,6 +42,27 @@
         "accent": "#ffffff"
       },
       "createdAt": "2026-11-08T10:37:36.387Z"
+    },
+    {
+      "id": "0cfce993-db51-4886-90c6-354387cbb87e",
+      "appearance": {
+        "name": "もりたくコモド龍",
+        "number": "7",
+        "hair": 11,
+        "eyes": 2,
+        "brows": 14,
+        "mouth": 17,
+        "paint": 0,
+        "pattern": 2,
+        "hat": 0,
+        "skin": "#2e86de",
+        "hairColor": "#30251e",
+        "eyeColor": "#24262e",
+        "uniform": "#e4572e",
+        "hatColor": "#b8361a",
+        "accent": "#fff6df"
+      },
+      "createdAt": "2026-11-08T12:23:41.985Z"
     }
   ]
 }
