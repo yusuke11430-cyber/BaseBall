@@ -822,14 +822,34 @@ function applyStance(st) {
 }
 
 // ボール・影・ゾーン・カーソル
-const ball = new THREE.Mesh(sphG, M('#ffffff')); ball.scale.setScalar(0.055); ball.castShadow = true; scene.add(ball);
+const ball = new THREE.Mesh(sphG, M('#ffffff')); ball.scale.setScalar(0.075); ball.castShadow = true; scene.add(ball);
 const seam = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.08, 6, 24), M('#e4402e')); ball.add(seam);
 const ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
 ballShadow.rotation.x = -Math.PI / 2; scene.add(ballShadow);
 const overlay = (obj, order) => { obj.renderOrder = order; obj.traverse(o => { if (o.material) { o.material.depthTest = false; o.material.transparent = true; } }); return obj; };
+let zoneLine = null;
+// ---- 投球を見やすく：ボールの光・軌跡・本塁通過マーク ----
+const glowTex = canvasTex(64, 64, g => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,240,170,.75)'); gr.addColorStop(1, 'rgba(255,220,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
+const ballGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, depthTest: false, depthWrite: false, transparent: true, opacity: 0.85 }));
+ballGlow.scale.set(0.3, 0.3, 1); ballGlow.renderOrder = 4; ballGlow.visible = false;
+const trail = [];
+for (let i = 0; i < 7; i++) { const t = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, depthTest: false, depthWrite: false, transparent: true, opacity: 0.45 * (1 - i / 7) })); t.scale.setScalar(0.2 * (1 - i / 9)); t.renderOrder = 3; t.visible = false; trail.push(t); }
+const trailHist = [];
+// 本塁を通過した位置（ストライクなら黄色、ボールなら白）
+const crossMark = new THREE.Group();
+{
+  const ringM = new THREE.MeshBasicMaterial({ color: 0xffd23f, side: THREE.DoubleSide, transparent: true });
+  crossMark.add(new THREE.Mesh(new THREE.RingGeometry(0.055, 0.075, 32), ringM));
+  crossMark.add(new THREE.Mesh(new THREE.CircleGeometry(0.04, 24), new THREE.MeshBasicMaterial({ color: 0xffd23f, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })));
+}
+function showBallFx(p, on) {
+  ballGlow.visible = on; if (on) ballGlow.position.copy(p);
+  if (on) { trailHist.unshift(p.clone()); if (trailHist.length > 14) trailHist.pop(); } else trailHist.length = 0;
+  trail.forEach((t, i) => { const h = trailHist[i * 2 + 2]; t.visible = on && !!h; if (h) t.position.copy(h); });
+}
 const zone = new THREE.Group();
 {
-  const Z = BB.ZONE, lm = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.85 }), lm2 = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3 });
+  const Z = BB.ZONE, lm = zoneLine = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.85 }), lm2 = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3 });
   const pts = [[Z.x0, Z.y0], [Z.x1, Z.y0], [Z.x1, Z.y1], [Z.x0, Z.y1], [Z.x0, Z.y0]].map(([x, y]) => new THREE.Vector3(x, y, 0));
   zone.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lm));
   const g = [];
@@ -837,6 +857,9 @@ const zone = new THREE.Group();
   zone.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(g), lm2));
 }
 overlay(zone, 5); scene.add(zone);
+scene.add(ballGlow); trail.forEach(t => scene.add(t));
+overlay(crossMark, 6); crossMark.visible = false; scene.add(crossMark);
+function resetBallFx() { showBallFx(null, false); crossMark.visible = false; if (zoneLine) zoneLine.color.set(0xffffff); }
 const cursor = new THREE.Group();
 {
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffb627, opacity: 0.95, side: THREE.DoubleSide }));
@@ -1143,7 +1166,7 @@ function nextPitch() {
   C.phase = 'ready'; C.pi = null; C.out = null; C.play = null; C.swingAt = null; C.impactAt = null; C.resolved = false;
   renderHUD(); placeTeams(); if (!C.gs.over) setBgm(BB.batSide(C.gs));
   show('#aimPad', false);
-  cam.mode = role() === 'pitch' ? 'mound' : 'pitch'; zone.visible = true; aim.visible = false; cursor.visible = false;
+  cam.mode = role() === 'pitch' ? 'mound' : 'pitch'; zone.visible = true; aim.visible = false; cursor.visible = false; resetBallFx(); C.crossShown = false;
   show('#speed', false);
   if (C.gs.over) return gameOver();
   const r = role();
@@ -1213,7 +1236,7 @@ function throwPitch() {
 function startPitch(pi, windup) {
   C.pi = pi; C.t0 = now(); C.W = windup; C.dur = BB.pitchDuration(pi); C.phase = 'pitching';
   C.out = null; C.swingAt = null; C.impactAt = null; C.resolved = false; C.waitNote = false; C.swung = false; C.buntTry = false; C.obsBunt = null;
-  C.guess = { x: (Math.random() - 0.5) * 0.32, y: (Math.random() - 0.5) * 0.26 };
+  C.guess = { x: (Math.random() - 0.5) * 0.14, y: (Math.random() - 0.5) * 0.1 };
   $('#speed').dataset.n = ''; duckBgm(true);
   if (role() === 'bat') status(''); else if (role() === 'watch') status('観戦中');
   const sp = $('#speed'); sp.innerHTML = '<span class="pt">投球中</span>…'; show(sp, true);
@@ -1284,6 +1307,7 @@ function finishPitch(newGs, wait) {
 
 // 打球アニメーション
 function startPlay(o, newGs) {
+  showBallFx(null, false);
   C.phase = 'play'; zone.visible = false; cursor.visible = false; buntBar.visible = false; show('#batUI', false); status('');
   const fl = BB.flight(o.phi, o.la, o.ev, o.kind === 'foul' ? 1.6 : 7);
   const at = BB.pitchPos(C.pi, 1);
@@ -1408,14 +1432,22 @@ function updatePitch(t) {
   const bp = BB.pitchPos(C.pi, ss);
   if (C.phase === 'pitching' || C.phase === 'call') {
     ball.visible = true; ball.position.set(bp.x, bp.y, bp.z); ball.rotation.x += 0.6;
+    showBallFx(ball.position, s < 1.02 || C.phase === 'pitching');
+    // 本塁を通過した瞬間、その位置に印を残す（ストライクゾーン内なら黄色・枠も光る）
+    if (!C.crossShown && s >= 1) {
+      C.crossShown = true; const pc = BB.pitchPos(C.pi, 1), inz = BB.inZone(pc.x, pc.y);
+      crossMark.position.set(pc.x, pc.y, 0.01); crossMark.visible = true;
+      crossMark.children.forEach(m => m.material.color.set(inz ? 0xffd23f : 0xffffff));
+      if (zoneLine) zoneLine.color.set(inz ? 0xffd23f : 0xffffff);
+    }
     ballShadow.visible = true; ballShadow.position.set(bp.x, 0.02, bp.z);
   }
   // 打者にだけ、だいたいの到達位置を見せる（近づくほど正確に）
   if (r === 'bat' && C.phase === 'pitching' && !C.out && s > 0.02 && s < 1.02) {
     // だいたいの位置だけ：円は大きく、中心も最後まで少しずれたまま
-    const at = BB.pitchPos(C.pi, BB.contactS(ST.dz)), k = 1 - 0.35 * Math.min(1, s / 0.8);
+    const at = BB.pitchPos(C.pi, BB.contactS(ST.dz)), k = 1 - 0.6 * Math.min(1, s / 0.8);
     guess.visible = true; guess.position.set(at.x + C.guess.x * k, at.y + C.guess.y * k, ST.dz);
-    const rad = 0.17 + 0.09 * k; guess.scale.set(rad, rad, 1);
+    const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
   } else guess.visible = false;
   // 捕手のミット
   if (s > 0.86) { const k = Math.min(1, (s - 0.86) / 0.14); const at = BB.pitchPos(C.pi, 1); mitt.position.set(lerp(0, at.x, k), lerp(0.42, at.y, k), lerp(1.25, 1.05, k)); }
@@ -1753,6 +1785,7 @@ function enterGame() {
   banner('プレイボール!', 'big'); call2('play'); nextPitch(); canvas.focus({ preventScroll: true });
 }
 function toLobby(card = '#home') {
+  resetBallFx();
   pipStop();
   setBgm('lobby'); $('#home').insertBefore($('#soundBar'), $('#home .howto'));
   C.token++; C.phase = 'lobby'; C.gs = null; C.pi = null; C.play = null; cam.mode = 'lobby';
