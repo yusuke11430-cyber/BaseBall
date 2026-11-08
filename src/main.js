@@ -1004,7 +1004,7 @@ function updatePlay(t) {
 }
 
 // ---- 打球カメラ（打ったときだけ右上の別枠で、ボールを後ろから追う） ----
-const pipCam = new THREE.PerspectiveCamera(48, 16 / 9, 0.1, 1200);
+const pipCam = new THREE.PerspectiveCamera(40, 16 / 9, 0.1, 1200);
 const PIP = { on: false, dir: new THREE.Vector3(0, 0, -1), look: new THREE.Vector3() };
 function pipStart() {
   PIP.on = true; show('#pip', true); show('#speed', false);
