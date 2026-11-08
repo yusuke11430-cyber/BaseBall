@@ -1572,14 +1572,33 @@ function renderCharacterList() {
 }
 async function refreshSharedCharacters() {
   const request = ++studio.load; $('#characterListStatus').textContent = '共有キャラを読み込んでいます…';
-  try {
-    const data = await characterRequest(); if (request !== studio.load) return;
+  let serverReady = false, publicReady = false;
+  const adopt = data => {
     if (!Array.isArray(data.characters)) throw new Error('共有一覧の形式を確認できません');
-    studio.canShare = data.writable !== false;
     const shared = data.characters.filter(c => c && typeof c.id === 'string').map(c => ({ id: c.id, appearance: AVATAR.clean(c.appearance), shared: true }));
     const ids = new Set(shared.map(c => c.id)); studio.records = [...studio.records.filter(c => !c.shared && !ids.has(c.id)), ...shared];
-    cacheCharacters(); renderCharacterList(); $('#characterListStatus').textContent = `みんなで使える共有キャラ：${shared.length}人` + (studio.canShare ? '' : '\n共有への新規保存は準備中です。端末には保存できます');
-  } catch (e) { if (request === studio.load) { $('#characterListStatus').textContent = `${e.message}\n保存済みの端末データでも遊べます`; studioButtons(); } }
+    cacheCharacters(); renderCharacterList(); return shared.length;
+  };
+  // 読み込みは公開JSONから先行。無料サーバーの起動待ちでも選べるようにする。
+  const publicRead = (async () => {
+    if (!window.SHARED_CHARACTER_CATALOG) return;
+    try {
+      const response = await fetch(window.SHARED_CHARACTER_CATALOG, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      if (!response.ok) return; const data = await response.json();
+      if (request !== studio.load || serverReady) return;
+      studio.canShare = false; const count = adopt(data); publicReady = true;
+      $('#characterListStatus').textContent = `みんなで使える共有キャラ：${count}人\n保存サーバーへの接続を確認しています…`;
+    } catch (e) { }
+  })();
+  try {
+    const data = await characterRequest(); if (request !== studio.load) return;
+    studio.canShare = data.writable !== false;
+    const count = adopt(data); serverReady = true;
+    $('#characterListStatus').textContent = `みんなで使える共有キャラ：${count}人` + (studio.canShare ? '' : '\n共有への新規保存は準備中です。端末には保存できます');
+  } catch (e) {
+    await publicRead;
+    if (request === studio.load) { studio.canShare = false; $('#characterListStatus').textContent = publicReady ? `みんなで使える共有キャラ：${studio.records.filter(c=>c.shared).length}人\n共有キャラを選べます。新規保存はサーバーへの接続待ちです` : `${e.message}\n保存済みの端末データでも遊べます`; studioButtons(); }
+  }
 }
 function markAvatarEdited() {
   if (studio.records.some(c => c.id === studio.id)) { studio.id = crypto.randomUUID(); studio.selectedId = null; }

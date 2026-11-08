@@ -47,6 +47,7 @@ Settings → Pages → Build and deployment
 既定の保存先はこのリポジトリの `character-data` ブランチにある `characters.json` です。
 mainブランチとは分かれているため、キャラ保存でゲーム本体を再デプロイしません。
 この共有JSONは公開情報です。非公開リポジトリへ保存したい場合は以下の保存先設定を変更できます。
+公開一覧は `docs/config.js` の `SHARED_CHARACTER_CATALOG` から先行読み込みし、Renderの起動待ちでも選べます。非公開保存先へ切り替える場合はこの値を空文字にしてください。
 共有一覧は認証情報なしでも読み出せますが、ゲームから新規保存するには、RenderのEnvironmentに認証トークンを設定します。
 
 | 環境変数 | 設定内容 |
