@@ -1,0 +1,302 @@
+<title>まるっと野球</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<style>
+/* レイアウト: 全画面3Dキャンバスの上に、ステッカー風のHUDと操作パネルを重ねる */
+:root{
+  --ink:#1b2a4a;          /* 紺の線と文字 */
+  --paper:#fffdf6;        /* パネルの地 */
+  --sun:#ffb627;          /* アクセント（ボタン・カーソル） */
+  --sky:#7cc6f2;
+  --grass:#3f8f3a;
+  --away:#e4572e;         /* ビジター */
+  --home:#2e86de;         /* ホーム */
+  --muted:#5b6a86;
+  --f-display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--sky);color:var(--ink);font-family:var(--f-body);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+button{font-family:var(--f-body);color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--home);outline-offset:2px}
+
+/* ---- HUD ---- */
+.hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(12px,env(safe-area-inset-left,0px));
+  right:max(12px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none;z-index:5}
+.sticker{background:var(--paper);border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink)}
+.board{padding:6px 8px;overflow-x:auto;max-width:min(560px,62vw)}
+.board table{border-collapse:collapse;font-family:var(--f-display);font-variant-numeric:tabular-nums;font-size:15px}
+.board th,.board td{padding:2px 6px;text-align:center;min-width:16px}
+.board thead th{font-size:11px;color:var(--muted);font-family:var(--f-body);font-weight:800}
+.board td.tm{text-align:left;font-family:var(--f-body);font-weight:800;font-size:13px;max-width:7.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:2px}
+.board td.tm::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;border:2px solid var(--ink)}
+.board tr.away td.tm::before{background:var(--away)} .board tr.home td.tm::before{background:var(--home)}
+.board td.r{background:var(--ink);color:var(--paper);border-radius:6px}
+.board tr.bat td.tm{text-decoration:underline 3px var(--sun);text-underline-offset:3px}
+.board .now{background:#fff1c9;border-radius:6px}
+.count{display:flex;align-items:center;gap:10px;padding:8px 12px}
+.inn{font-family:var(--f-display);font-size:18px;white-space:nowrap}
+.bso{display:grid;grid-template-columns:auto auto;gap:2px 6px;align-items:center;font-family:var(--f-display);font-size:12px}
+.dots{display:flex;gap:4px}
+.dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--ink);background:#e9e4d6}
+.dot.b.on{background:#3fbf5a}.dot.s.on{background:var(--sun)}.dot.o.on{background:#e4402e}
+.bases{width:44px;height:44px;flex:none}
+.speed{position:fixed;right:max(14px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 142px);
+  font-family:var(--f-display);font-size:22px;padding:4px 12px;z-index:5;pointer-events:none}
+.speed small{font-size:12px;font-family:var(--f-body);font-weight:800;margin-left:4px}
+.speed .pt{display:block;font-size:11px;font-family:var(--f-body);font-weight:800;color:var(--muted)}
+
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.sta{display:flex;align-items:center;gap:8px;padding:5px 10px;font-weight:800;font-size:12px;min-width:210px;box-sizing:border-box}
+.sta .lbl{white-space:nowrap;max-width:10em;overflow:hidden;text-overflow:ellipsis}
+.sta .bar{flex:1;min-width:60px;height:10px;border:2px solid var(--ink);border-radius:6px;background:#e9e4d6;overflow:hidden}
+.sta .bar i{display:block;height:100%;width:100%;background:#3fbf5a;transition:width .4s,background-color .4s}
+.sta b{font-family:var(--f-display);font-weight:400;font-size:14px;font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right}
+.speedrow{align-items:center;gap:10px}
+.brk{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px}
+.brk.locked{opacity:.4}
+.brkseg button[disabled]{cursor:not-allowed}
+.brkseg button{padding:4px 8px;font-family:var(--f-display);font-weight:400;font-size:14px;min-width:26px}
+.speedrow .act{padding:6px 18px;font-size:18px;min-width:0;margin-left:auto}
+.panel .hint.touch-only{display:none}
+@media (pointer:coarse){.panel .hint.touch-only{display:block}.panel .hint.mouse-only{display:none}}
+.spd{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px}
+input.num{width:5.2em;padding:5px 8px;font-family:var(--f-display);font-weight:400;font-size:18px;text-align:right}
+.cost{font-size:12.5px;font-weight:800;color:var(--muted);flex:1 1 180px;min-width:0}
+.cost b{color:var(--ink);font-family:var(--f-display);font-weight:400}
+.cost.warn{color:#c2361a}.cost.warn b{color:#c2361a}
+/* 結果バナー */
+.banner{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.6) rotate(-4deg);opacity:0;z-index:6;
+  font-family:var(--f-display);font-size:clamp(34px,8vw,76px);color:var(--paper);white-space:nowrap;pointer-events:none;
+  -webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 6px 0 var(--ink);transition:transform .25s cubic-bezier(.2,1.6,.4,1),opacity .2s}
+.banner.show{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-4deg)}
+.banner.big{color:var(--sun)}
+.banner.out{color:#ffd9d2}
+.call{position:fixed;left:50%;top:58%;transform:translateX(-50%);font-family:var(--f-display);font-size:22px;
+  padding:6px 16px;z-index:6;pointer-events:none;opacity:0;transition:opacity .15s}
+.call.show{opacity:1}
+
+.timing{position:fixed;left:50%;top:46%;transform:translateX(-50%);z-index:6;pointer-events:none;opacity:0;transition:opacity .12s;
+  padding:6px 14px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.timing.show{opacity:1}
+.timing b{font-family:var(--f-display);font-weight:400;font-size:20px}
+.timing span{font-size:12.5px;font-weight:800;color:var(--muted)}
+.timing.just b{color:#d18a00}.timing.early b{color:var(--home)}.timing.late b{color:var(--away)}.timing.far b{color:var(--muted)}
+/* 操作パネル */
+.panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:5;
+  width:min(720px,calc(100% - 24px));box-sizing:border-box;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
+  background:rgba(255,253,246,.78);pointer-events:none;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.panel button,.panel input,.panel label{pointer-events:auto}
+.panel .hint{font-size:13px;font-weight:800;color:var(--muted);text-align:center}
+.panel .hint b{color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:stretch}
+.ptgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.pt-btn{min-width:0;border:3px solid var(--ink);background:#fff;border-radius:12px;padding:4px 6px 3px;cursor:pointer;
+  box-shadow:0 3px 0 var(--ink);font-weight:800;font-size:14px;line-height:1.2;transition:transform .08s}
+.pt-btn{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt-btn small{display:block;font-size:10.5px;color:var(--muted);font-family:var(--f-display);font-weight:400}
+.pt-btn kbd{font-family:var(--f-display);font-size:10px;color:var(--muted);margin-right:3px}
+.pt-btn[aria-pressed="true"]{background:var(--sun);transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.act{border:3px solid var(--ink);background:var(--sun);border-radius:14px;padding:10px 22px;font-family:var(--f-display);
+  font-size:20px;cursor:pointer;box-shadow:0 4px 0 var(--ink);min-width:150px}
+.act:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.act.ghost{background:#fff;font-size:15px;font-family:var(--f-body);font-weight:800;padding:8px 16px;min-width:0}
+.act[disabled]{opacity:.45;cursor:default}
+.act.small{font-size:13px;padding:6px 12px;min-width:0}
+#buntBtn[aria-pressed="true"]{background:var(--sun)}
+.status{font-weight:800;text-align:center;font-size:15px;padding:4px}
+.status .spin{display:inline-block;width:12px;height:12px;border:3px solid var(--ink);border-right-color:transparent;border-radius:50%;
+  animation:spin .8s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.touch-only{display:none}
+@media (pointer:coarse){.touch-only{display:inline-block}.mouse-only{display:none}}
+body > .soundbar{position:fixed;left:max(12px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 142px);z-index:6}
+.soundbar{display:flex;gap:6px;flex-wrap:wrap}
+.soundbar{flex-direction:column;align-items:flex-start}
+.soundbar .act{font-size:12.5px;padding:5px 12px}
+.vols{display:none;grid-template-columns:auto minmax(0,1fr) 2.4em;align-items:center;gap:6px 10px;font-weight:800;font-size:13px}
+.vols input{width:100%;accent-color:var(--home);min-width:110px}
+.vols output{font-family:var(--f-display);font-variant-numeric:tabular-nums;text-align:right}
+body > .soundbar.open .vols{display:grid;background:var(--paper);border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);padding:10px 12px;width:240px;box-sizing:border-box}
+#home .soundbar #soundToggle{display:none}
+#home .soundbar .vols{display:grid;width:100%}
+#home .soundbar{width:100%}
+.pip{position:fixed;z-index:5;right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 136px);
+  width:min(40vw,400px);aspect-ratio:16/9;border:3px solid var(--ink);border-radius:12px;box-shadow:0 4px 0 var(--ink);pointer-events:none;box-sizing:border-box}
+.pip span{position:absolute;left:8px;top:6px;background:var(--ink);color:var(--paper);font-weight:800;font-size:11px;padding:2px 8px;border-radius:8px}
+@media (max-width:520px){.pip{width:52vw;top:calc(env(safe-area-inset-top,0px) + 128px)}}
+.aimpad{position:fixed;z-index:5;right:max(16px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-58%);width:min(250px,30vw);
+  background:rgba(20,32,58,.72);border:3px solid var(--ink);border-radius:16px;padding:6px 8px 8px;box-shadow:0 4px 0 var(--ink);box-sizing:border-box}
+.aimpad .padhead{display:flex;justify-content:space-between;align-items:baseline;color:var(--paper);font-weight:800;font-size:13px;padding:0 2px 4px;gap:6px}
+.aimpad .padhead span{font-family:var(--f-display);font-weight:400}
+.aimpad .padhead small{font-size:11px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#padCanvas{display:block;width:100%;aspect-ratio:124/132;cursor:crosshair;touch-action:none;border-radius:10px}
+@media (max-width:720px){.aimpad{left:50%;right:auto;top:auto;transform:translateX(-50%);width:min(230px,58vw)}}
+.menu-btn{position:fixed;left:max(12px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 98px);z-index:6;
+  font-size:13px;padding:6px 10px}
+
+/* ロビー */
+.lobby{position:fixed;inset:0;z-index:10;display:flex;overflow:auto;
+  padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(180deg,rgba(124,198,242,.15),rgba(27,42,74,.35))}
+.card{margin:auto;width:min(460px,100%);box-sizing:border-box;padding:22px 22px 18px;display:flex;flex-direction:column;gap:14px}
+.logo{font-family:var(--f-display);font-size:clamp(38px,11vw,56px);line-height:1;margin:0;letter-spacing:.02em;text-wrap:balance;
+  color:var(--paper);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 5px 0 var(--ink)}
+.logo span{color:var(--sun)}
+.tag{margin:0;font-weight:800;color:var(--muted);font-size:14px}
+label.fld{display:flex;flex-direction:column;gap:5px;font-weight:800;font-size:13px}
+input.txt{font:inherit;font-size:17px;font-weight:800;border:3px solid var(--ink);border-radius:12px;padding:9px 12px;background:#fff;color:var(--ink);min-width:0;
+  -webkit-user-select:text;user-select:text}
+input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-display);font-weight:400;width:7.5em}
+.seg{display:flex;border:3px solid var(--ink);border-radius:12px;overflow:hidden;width:max-content}
+.seg button{border:0;background:#fff;padding:7px 14px;font-weight:800;cursor:pointer;border-right:2px solid var(--ink);font-size:14px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--sun)}
+.split{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hr{height:0;border-top:2px dashed #c9c2ad;margin:2px 0}
+.note{font-size:12px;color:var(--muted);font-weight:700;line-height:1.6;margin:0}
+.note.warn{color:#b0401f}
+.bigcode{font-family:var(--f-display);font-size:44px;letter-spacing:.2em;text-align:center;background:#fff1c9;border:3px dashed var(--ink);border-radius:14px;padding:6px 0 4px;
+  -webkit-user-select:text;user-select:text}
+.howto{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12.5px;font-weight:700;margin:0}
+.howto dt{font-family:var(--f-display);font-weight:400}
+.howto dd{margin:0;color:var(--muted)}
+.final .score{font-family:var(--f-display);font-size:40px;text-align:center}
+.final .who{font-family:var(--f-display);font-size:24px;text-align:center}
+@media (max-width:520px){
+  .board{max-width:58vw}.board table{font-size:13px}.board td.tm{max-width:4.6em;font-size:12px}
+  .count{padding:6px 8px;gap:6px}.inn{font-size:14px}.bases{width:36px;height:36px}
+  .speed{top:calc(env(safe-area-inset-top,0px) + 134px);font-size:18px}
+  .sta{min-width:0}.sta .lbl{display:none}
+  .act{font-size:18px;min-width:120px}
+}
+@media (prefers-reduced-motion:reduce){.banner{transition:opacity .2s}.status .spin{animation:none}}
+</style>
+
+<canvas id="c" tabindex="0" aria-label="野球のフィールド"></canvas>
+
+<div class="hud" id="hud" hidden>
+  <div class="sticker board"><table id="line" aria-label="スコアボード"></table></div>
+  <div class="right">
+  <div class="sticker count" aria-live="polite">
+    <div class="inn" id="inn">1回表</div>
+    <div class="bso">
+      <span>B</span><div class="dots"><i class="dot b"></i><i class="dot b"></i><i class="dot b"></i></div>
+      <span>S</span><div class="dots"><i class="dot s"></i><i class="dot s"></i></div>
+      <span>O</span><div class="dots"><i class="dot o"></i><i class="dot o"></i></div>
+    </div>
+    <svg class="bases" viewBox="0 0 44 44" aria-hidden="true">
+      <rect id="b2" x="16" y="3" width="12" height="12" transform="rotate(45 22 9)" fill="#e9e4d6" stroke="#1b2a4a" stroke-width="2.5"/>
+      <rect id="b3" x="3" y="16" width="12" height="12" transform="rotate(45 9 22)" fill="#e9e4d6" stroke="#1b2a4a" stroke-width="2.5"/>
+      <rect id="b1" x="29" y="16" width="12" height="12" transform="rotate(45 35 22)" fill="#e9e4d6" stroke="#1b2a4a" stroke-width="2.5"/>
+    </svg>
+  </div>
+  <div class="sticker sta" title="守備側の投手のスタミナ"><span class="lbl" id="staLbl">投手</span><div class="bar"><i id="staBar"></i></div><b id="staNum">100</b></div>
+  </div>
+</div>
+<div class="sticker speed" id="speed" hidden></div>
+<div class="banner" id="banner"></div>
+<div class="sticker call" id="call"></div>
+<div class="sticker timing" id="timing" aria-live="polite"></div>
+
+<div class="sticker panel" id="panel" hidden>
+  <div id="pitchUI" hidden>
+    <div class="ptgrid" id="ptRow"></div>
+    <div class="row speedrow" style="margin-top:6px">
+      <label class="spd" for="speedIn">球速<input id="speedIn" class="txt num" type="number" inputmode="numeric" min="20" max="1000" step="1" value="146"><span>km/h</span></label>
+      <div class="brk" id="brkWrap"><span>変化量</span><div class="seg brkseg" id="brkRow" role="group" aria-label="変化量（大きいほど曲がる）"></div></div>
+      <span class="cost" id="costTxt"></span>
+    </div>
+    <div class="hint mouse-only"><b>コース枠</b>の中か、ストライクゾーンの近くを<b>クリック</b>で投球（<b>1〜0</b>で球種・<b>Q/E</b>で変化量・<b>矢印キー</b>＋<b>Space</b>でも可）</div>
+    <div class="hint touch-only"><b>コース枠</b>をタップすると投球</div>
+  </div>
+  <div id="batUI" hidden>
+    <div class="row" style="align-items:center">
+      <span class="hint mouse-only"><b>クリック</b>でスイング（何度でも振れる）・<b>右クリック</b>でバント・<b>WASD</b>で立ち位置・<b>X</b>で打席を入れ替え</span>
+      <button class="act ghost small" id="buntBtn" type="button" aria-pressed="false">バント</button>
+      <button class="act ghost small" id="boxBtn" type="button">打席切替</button>
+      <span class="hint touch-only"><b>なぞって</b>カーソルを青い円に合わせ</span>
+      <button class="act touch-only" id="swingBtn">スイング</button>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+<button class="act ghost menu-btn" id="menuBtn" hidden>ロビーへ</button>
+<div class="soundbar" id="soundBar">
+  <button class="act ghost" id="soundToggle" aria-expanded="false" aria-controls="vols">音量</button>
+  <div class="vols" id="vols">
+    <label for="volBgm">BGM</label><input type="range" id="volBgm" min="0" max="100" step="1"><output id="volBgmO" for="volBgm"></output>
+    <label for="volVoice">声</label><input type="range" id="volVoice" min="0" max="100" step="1"><output id="volVoiceO" for="volVoice"></output>
+    <label for="volSfx">効果音</label><input type="range" id="volSfx" min="0" max="100" step="1"><output id="volSfxO" for="volSfx"></output>
+  </div>
+</div>
+<div class="pip" id="pip" hidden><span>打球カメラ</span></div>
+<div class="aimpad" id="aimPad" hidden>
+  <div class="padhead"><span>コース</span><small id="padNote">枠の近くをクリックで投球</small></div>
+  <canvas id="padCanvas" aria-label="投げるコースを選ぶ枠"></canvas>
+</div>
+
+<div class="lobby" id="lobby">
+  <div class="sticker card" id="home">
+    <h1 class="logo">まるっと<span>野球</span></h1>
+    <p class="tag">球種とコースで勝負する、3Dのオンライン対戦野球</p>
+    <label class="fld" for="nick">名前
+      <input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー">
+    </label>
+    <div class="fld" style="display:flex;flex-direction:column;gap:5px;font-weight:800;font-size:13px">イニング数
+      <div class="seg" id="innSeg" role="group" aria-label="イニング数">
+        <button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button>
+      </div>
+    </div>
+    <div class="hr"></div>
+    <div class="split">
+      <button class="act" id="createBtn">部屋を作る</button>
+      <span class="note">作るとコードが出ます。相手に伝えてください</span>
+    </div>
+    <div class="split">
+      <input class="txt code" id="codeIn" maxlength="4" placeholder="コード" autocomplete="off" aria-label="部屋コード">
+      <button class="act ghost" id="joinBtn">部屋に入る</button>
+    </div>
+    <p class="note" id="onlineNote">オンライン接続を確認しています…</p>
+    <div class="hr"></div>
+    <div class="split"><button class="act ghost" id="cpuBtn">CPUと練習する</button></div>
+    <dl class="howto">
+      <dt>投手</dt><dd>球種を選び、狙うコースをクリック。変化球は曲がる分も考えて</dd>
+      <dt>球速</dt><dd>20〜1000km/hで自由に。速いほどスタミナを使い、遅いほど山なりに</dd>
+      <dt>打者</dt><dd>黄色いカーソルを青い円（だいたいの到達位置）に合わせてスイング。早いと引っ張り、遅いと流し打ち</dd>
+    </dl>
+    <p class="note">BGM・応援歌：ニコニ・コモンズ　／　3D表示：three.js</p>
+  </div>
+
+  <div class="sticker card" id="wait" hidden>
+    <h2 class="logo" style="font-size:30px">部屋コード</h2>
+    <div class="bigcode" id="waitCode">----</div>
+    <div class="split"><button class="act ghost" id="copyBtn">コードをコピー</button><button class="act ghost" id="linkBtn" hidden>リンクをコピー</button><span class="note" id="copyNote"></span></div>
+    <p class="note" id="waitHow">このページを相手のメールアドレスあてに共有し、claude.aiにサインインした状態で開いて、このコードで「部屋に入る」を押してもらってください。</p>
+    <div class="status" id="waitStatus"><span class="spin"></span>相手を待っています</div>
+    <button class="act ghost" id="cancelBtn">やめる</button>
+  </div>
+
+  <div class="sticker card final" id="final" hidden>
+    <div class="who" id="finWho"></div>
+    <div class="score" id="finScore"></div>
+    <div class="split" style="justify-content:center">
+      <button class="act" id="againBtn">もう一試合</button>
+      <button class="act ghost" id="backBtn">ロビーへ</button>
+    </div>
+    <p class="note" id="finNote" style="text-align:center"></p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*LOGIC*/
+</script>
+<script>
+/*MAIN*/
+</script>
