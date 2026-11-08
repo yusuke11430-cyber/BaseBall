@@ -12,14 +12,37 @@ for(const type of BB.PITCH_KEYS) for(let bl=1;bl<=7;bl++) for(const speed of [20
   const contact=BB.contactS(sz), at=BB.pitchPos(pi,contact);
   assert.deepEqual(BB.predictContact(pi,contact,sz),at);
   assert.deepEqual(BB.predictContact(pi,contact+0.1,sz),at);
-  // 振りかぶり中から全区間で、打撃判定と同じ到達位置を表示する。
-  for(const fraction of [-2,-0.1,0,0.02,0.25,0.5,0.7,0.9,1]) assert.deepEqual(BB.predictContact(pi,contact*fraction,sz),at);
+  // 同じ投球・時刻では予測も決定的。ストレートは固定、変化球は接触時に正確に収束。
+  for(const fraction of [-2,-0.1,0,0.02,0.25,0.5,0.7,0.9,1]) {
+    assert.deepEqual(BB.predictContact(pi,contact*fraction,sz),BB.predictContact({...pi},contact*fraction,sz));
+    if(type==='st') assert.deepEqual(BB.predictContact(pi,contact*fraction,sz),at);
+  }
   for(const fraction of [0,0.02,0.25,0.5,0.9,0.999]) {
     const predicted=BB.predictContact(pi,contact*fraction,sz);
     assert.ok(Object.values(predicted).every(Number.isFinite));
     assert.ok(Math.abs(predicted.z-at.z)<1e-12);
   }
   predictionCases++;
+}
+// 変化球の予測は曲がる方向へ動き、変化量が大きいほど移動幅が増える。
+for(const type of BB.PITCH_KEYS.filter(t=>!['st','kn'].includes(t))) for(const sz of [-.9,0,.6]) {
+  let previous=0;
+  for(let bl=1;bl<=7;bl++) {
+    const pi=BB.makePitch(1,type,0,.8,42,146,100,bl), contact=BB.contactS(sz), end=BB.pitchPos(pi,contact);
+    const initial=BB.predictContact(pi,contact*.1,sz), mid=BB.predictContact(pi,contact*.5,sz), late=BB.predictContact(pi,contact*.9,sz);
+    const error=p=>Math.hypot(p.x-end.x,p.y-end.y), distance=error(initial);
+    assert.ok(distance>previous);previous=distance;
+    assert.ok(error(mid)<distance&&error(late)<error(mid));
+    assert.ok((end.x-initial.x)*BB.PITCHES[type].bx>=0);
+    assert.ok((end.y-initial.y)*BB.PITCHES[type].by>=0);
+    assert.deepEqual(BB.predictContact(pi,contact,sz),end);
+  }
+}
+// ナックルは途中の予測も揺れ、seedごとに異なる。最後は正確な打撃位置。
+for(let seed=1;seed<=30;seed++){
+  const pi=BB.makePitch(1,'kn',0,.8,seed,108,100,7),contact=BB.contactS(0);
+  assert.notDeepEqual(BB.predictContact(pi,.2),BB.predictContact(pi,.6));
+  assert.deepEqual(BB.predictContact(pi,contact),BB.pitchPos(pi,contact));
 }
 // 通常の変化球は、同一球速・狙いで旧倍率からの曲がりを2倍にする。
 for(const type of BB.PITCH_KEYS.filter(t=>!['st','kn'].includes(t))) for(let bl=1;bl<=7;bl++) {
@@ -30,11 +53,11 @@ for(const type of BB.PITCH_KEYS.filter(t=>!['st','kn'].includes(t))) for(let bl=
   assert.ok(Math.abs((changed.y-straight.y)-2*(old.y-straight.y))<1e-10);
 }
 assert.equal(BB.breakScale('st',7),1);
-// 大きく落ちるフォークも最初から正確な到達位置を示す。
+// 大きく落ちるフォークは高めの予測から下へ動き、最後に実際の到達位置へ合う。
 const fork=BB.makePitch(1,'fk',0,0.8,42,134,100,7), target=BB.pitchPos(fork,1);
-assert.deepEqual(BB.predictContact(fork,-1),target);
-assert.deepEqual(BB.predictContact(fork,0.2),target);
-assert.ok(Math.abs(BB.predictContact(fork,0.6).y-target.y)<0.075);
+assert.ok(BB.predictContact(fork,0.2).y>BB.predictContact(fork,0.6).y);
+assert.ok(BB.predictContact(fork,0.6).y>target.y);
+assert.deepEqual(BB.predictContact(fork,1),target);
 assert.ok(Math.abs(BB.predictContact(fork,0.999).y-target.y)<0.001);
 // 直球では20km/hの大きな山なりを未来の変化と誤認しない。
 const slow=BB.makePitch(1,'st',0,0.8,42,20,100,4);

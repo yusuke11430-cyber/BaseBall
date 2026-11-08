@@ -936,7 +936,7 @@ function updatePitch(t) {
   }
   const s = (e - C.W) / C.dur;
   const r = role();
-  // リリース後、打者まで10%進んだ時点から到達位置を表示する。
+  // 10%から予測を表示。変化球に合わせて動き、打撃位置で実際の到達点へ収束する。
   if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= BB.contactS(ST.dz) * 0.1 && s < BB.contactS(ST.dz) + 0.02) {
     const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);

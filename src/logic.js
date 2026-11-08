@@ -86,9 +86,22 @@ const BB = (() => {
   }
   function inZone(x, y) { return x >= ZONE.x0 - 0.035 && x <= ZONE.x1 + 0.035 && y >= ZONE.y0 - 0.035 && y <= ZONE.y1 + 0.035; }
 
-  // 投球開始から打撃判定と同じ到達位置を表示する。
+  // 現時点までの変化から到達位置を予測。残りの変化は徐々に見えてきて、接触時は判定と一致する。
   function predictContact(pi, s, sz = 0) {
-    return pitchPos(pi, contactS(sz));
+    const contact = contactS(sz), at = pitchPos(pi, contact);
+    if (noBreak(pi.type) || s >= contact) return at;
+    const p = PITCHES[pi.type], m = pi.bm || 1, t = clamp(s, 0, contact), end = Math.min(contact, 1), seen = Math.min(t, 1);
+    // 観測済みの曲がりと現在の変化速度で、残り区間を外挿する（重力は織り込み済み）。
+    const remaining = Math.pow(end, p.k) - Math.pow(seen, p.k) - p.k * Math.pow(seen, p.k - 1) * (end - seen);
+    at.x -= p.bx * m * remaining; at.y -= p.by * m * remaining;
+    if (pi.kp) {
+      const wave = (u, frequency, phase) => Math.sin(u * frequency + phase) * Math.sin(u * Math.PI);
+      const slope = (u, frequency, phase) => frequency * Math.cos(u * frequency + phase) * Math.sin(u * Math.PI) + Math.PI * Math.sin(u * frequency + phase) * Math.cos(u * Math.PI);
+      // ナックルの不規則な揺れも反映。残り時間が短くなるほど予測のずれが消える。
+      const forecast = (frequency, phase) => 0.06 * m * (wave(seen, frequency, phase) + slope(seen, frequency, phase) * (end - seen) - wave(end, frequency, phase));
+      at.x += forecast(13, pi.kp[0]); at.y += forecast(10, pi.kp[1]);
+    }
+    return at;
   }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
