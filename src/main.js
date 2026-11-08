@@ -561,6 +561,7 @@ function placeTeams() {
 }
 
 function nextPitch() {
+  guess.visible = false;
   C.phase = 'ready'; C.pi = null; C.out = null; C.play = null; C.swingAt = null; C.impactAt = null; C.resolved = false;
   renderHUD(); placeTeams(); if (!C.gs.over) setBgm(BB.batSide(C.gs));
   show('#aimPad', false);
@@ -829,9 +830,15 @@ function updatePitch(t) {
     const arm = u < 0.55 ? -0.3 * lift : lerp(-0.3, 1, lunge);
     ud.handR.position.set(0.37 - 0.15 * Math.max(0, arm), 0.8 + 0.55 * Math.sin(Math.max(0, Math.min(1, (arm + 0.3) / 1.3)) * Math.PI), 0.06 + arm * 0.5);
   }
-  if (e < C.W) { ball.visible = false; ballShadow.visible = false; return; }
   const s = (e - C.W) / C.dur;
   const r = role();
+  // 振りかぶりの開始から、打撃判定と同じ到達位置を表示する。
+  if (r === 'bat' && C.phase === 'pitching' && !C.out && s < BB.contactS(ST.dz) + 0.02) {
+    const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
+    guess.visible = true; guess.position.set(at.x, at.y, at.z);
+    const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
+  } else guess.visible = false;
+  if (e < C.W) { ball.visible = false; ballShadow.visible = false; return; }
   // 打者：バントは、球がバットの位置に来た瞬間に判定
   if (r === 'bat' && !C.out && ST.b && !C.buntTry && s >= BB.contactS(ST.dz)) {
     C.buntTry = true;
@@ -860,12 +867,6 @@ function updatePitch(t) {
     }
     ballShadow.visible = true; ballShadow.position.set(bp.x, 0.02, bp.z);
   }
-  // 打者にだけ、現在の軌道からの到達予想を見せる（変化すると予想も動く）
-  if (r === 'bat' && C.phase === 'pitching' && !C.out && s > 0.02 && s < BB.contactS(ST.dz) + 0.02) {
-    const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - Math.min(1, s / contact);
-    guess.visible = true; guess.position.set(at.x, at.y, at.z);
-    const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
-  } else guess.visible = false;
   // 捕手のミット
   if (s > 0.86) { const k = Math.min(1, (s - 0.86) / 0.14); const at = BB.pitchPos(C.pi, 1); mitt.position.set(lerp(0, at.x, k), lerp(0.42, at.y, k), lerp(1.25, 1.05, k)); }
   if (s >= sMax && C.phase === 'pitching') {
@@ -1207,7 +1208,7 @@ function toLobby(card = '#home') {
   setBgm('lobby'); $('#home').insertBefore($('#soundBar'), $('#home .howto'));
   C.token++; C.phase = 'lobby'; C.gs = null; C.pi = null; C.play = null; cam.mode = 'lobby';
   ['#hud', '#panel', '#speed', '#menuBtn', '#aimPad'].forEach(s => show(s, false));
-  zone.visible = cursor.visible = aim.visible = ball.visible = ballShadow.visible = false;
+  zone.visible = cursor.visible = aim.visible = guess.visible = ball.visible = ballShadow.visible = false;
   show('#lobby', true); ['#home', '#wait', '#final'].forEach(s => show(s, s === card));
 }
 function gameOver() {

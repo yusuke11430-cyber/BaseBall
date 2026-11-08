@@ -85,26 +85,9 @@ const BB = (() => {
   }
   function inZone(x, y) { return x >= ZONE.x0 - 0.035 && x <= ZONE.x1 + 0.035 && y >= ZONE.y0 - 0.035 && y <= ZONE.y1 + 0.035; }
 
-  // 直近の軌道から予想し、飛行の20〜70%で実際の到達位置へ滑らかに寄せる。
-  // 終盤まで円を追い続けず、残り30%の時間を打撃の準備に使えるようにする。
+  // 投球開始から打撃判定と同じ到達位置を表示する。
   function predictContact(pi, s, sz = 0) {
-    const contact = contactS(sz), current = clamp(s, 0, contact);
-    const at = pitchPos(pi, current);
-    if (current >= contact * 0.7) return pitchPos(pi, contact);
-    const prev = Math.max(0, current - 0.01), span = current - prev;
-    if (!span) return { x: at.x, y: at.y, z: RELEASE.z + (PLATE_Z - RELEASE.z) * contact };
-    const before = pitchPos(pi, prev), remaining = contact - current;
-    const T = pitchDuration(pi);
-    const gravity = u => { const v = Math.min(u, 1); return 0.5 * G * T * T * v * (1 - v); };
-    const y = at.y - gravity(current), by = before.y - gravity(prev);
-    const predicted = { x: at.x + (at.x - before.x) / span * remaining,
-      y: y + (y - by) / span * remaining + gravity(contact),
-      z: RELEASE.z + (PLATE_Z - RELEASE.z) * contact };
-    const target = pitchPos(pi, contact), progress = clamp((current / contact - 0.2) / 0.5, 0, 1);
-    const assist = progress * progress * (3 - 2 * progress);
-    predicted.x += (target.x - predicted.x) * assist;
-    predicted.y += (target.y - predicted.y) * assist;
-    return predicted;
+    return pitchPos(pi, contactS(sz));
   }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
