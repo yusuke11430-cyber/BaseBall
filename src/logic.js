@@ -158,6 +158,27 @@ const BB = (() => {
   function contactS(sz) { return clamp(((sz || 0) - RELEASE.z) / (PLATE_Z - RELEASE.z), 0.9, 1.05); }
   // 判定・打球・衝撃表示が共有する接触位置。
   const contactPoint = (pi, sz = 0) => pitchPos(pi, contactS(sz));
+  // 球と体の掃引判定。1000km/hで1フレームに体を通り抜けても見落とさない。
+  function hitBatter(pi, st, fromS = 0, toS = 1.1) {
+    const x = Number.isFinite(st.x) ? st.x : st.lh ? .95 : -.95, z = clamp(+st.dz || 0, -.9, .6) - .05;
+    const length = PLATE_Z - RELEASE.z;
+    const start = Math.max(0, fromS, (z-.5-RELEASE.z)/length), end = Math.min(toS, (z+.5-RELEASE.z)/length);
+    if(end<=start)return null;
+    const bodies=[[x,1.33,z,.325,.325,.325],[x,.78,z,.375,.415,.345],
+      [x-.11,.3,z,.175,.295,.175],[x+.11,.3,z,.175,.295,.175]];
+    const steps=Math.max(1,Math.ceil((end-start)*length/.035));let a=pitchPos(pi,start);
+    for(let i=1;i<=steps;i++){
+      const s0=start+(end-start)*(i-1)/steps,s1=start+(end-start)*i/steps,b=pitchPos(pi,s1);let earliest=Infinity;
+      for(const [cx,cy,cz,rx,ry,rz] of bodies){
+        const u=[(a.x-cx)/rx,(a.y-cy)/ry,(a.z-cz)/rz],v=[(b.x-a.x)/rx,(b.y-a.y)/ry,(b.z-a.z)/rz];
+        const A=v.reduce((n,t)=>n+t*t,0),B=2*u.reduce((n,t,j)=>n+t*v[j],0),D=u.reduce((n,t)=>n+t*t,0)-1;
+        if(D<=0){earliest=0;continue;}const disc=B*B-4*A*D;
+        if(A>0&&disc>=0){const t=(-B-Math.sqrt(disc))/(2*A);if(t>=0&&t<=1)earliest=Math.min(earliest,t);}
+      }
+      if(earliest!==Infinity){const s=s0+(s1-s0)*earliest;return {s,point:pitchPos(pi,s)};}a=b;
+    }
+    return null;
+  }
   // バットの芯（グリップから66cm）がミートカーソルを通るインパクト姿勢。
   function swingPose(x, y, sz = 0, lh = false) {
     const h = lh ? -1 : 1, len = Math.hypot(1, 0.02), dx = h / len, dy = 0.02 / len;
@@ -264,6 +285,7 @@ const BB = (() => {
       if (b[0]) { if (b[1]) { if (b[2]) score(1); b[2] = 1; } b[1] = 1; } b[0] = 1;
     };
     switch (o.kind) {
+      case 'hbp': msg = 'デッドボール・乱闘開始'; break;
       case 'ball': gs.b++; msg = 'ボール'; if (gs.b >= 4) { walk(); resetCount(); msg = 'フォアボール'; } break;
       case 'strike': case 'whiff':
         gs.s++; msg = o.kind === 'whiff' ? '空振り' : 'ストライク';
@@ -332,6 +354,6 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;

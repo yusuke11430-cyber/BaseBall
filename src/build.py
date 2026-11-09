@@ -1,4 +1,4 @@
-# docs/index.html を src/ の4ファイルから組み立てる
+# docs/index.html と server/play.html を src/ のHTML・JSから組み立てる
 #   python3 src/build.py
 import os, hashlib
 here = os.path.dirname(os.path.abspath(__file__))
@@ -7,8 +7,10 @@ config_version = hashlib.sha256(open(os.path.join(root, 'docs', 'config.js'), 'r
 sh = open(os.path.join(here, 'shell.html'), encoding='utf-8').read()
 logic = open(os.path.join(here, 'logic.js'), encoding='utf-8').read()
 main = open(os.path.join(here, 'main.js'), encoding='utf-8').read()
+main = main.replace('/*BRAWL_VIEW*/', open(os.path.join(here, 'brawl-view.js'), encoding='utf-8').read())
 avatar = open(os.path.join(here, 'avatar.js'), encoding='utf-8').read()
-sh = sh.replace('/*LOGIC*/', logic).replace('/*AVATAR*/', avatar).replace('/*MAIN*/', main)
+brawl = open(os.path.join(here, 'brawl.js'), encoding='utf-8').read()
+sh = sh.replace('/*LOGIC*/', logic).replace('/*AVATAR*/', avatar).replace('/*BRAWL*/', brawl).replace('/*MAIN*/', main)
 open(os.path.join(root, 'server', 'avatar-schema.js'), 'w', encoding='utf-8').write(avatar)
 cut = sh.index('<canvas id="c"')
 head, body = sh[:cut], sh[cut:]
