@@ -1,6 +1,6 @@
 // 乱闘の固定30Hzロジック。オンラインではホーム側1台だけが進め、全員へ状態を配信する。
 const BRAWL = (() => {
-  const HZ=30, INTRO=45, HP=5, LIMIT=5, GAP=.7;
+  const HZ=30, INTRO=48, HP=5, LIMIT=5, GAP=.7;
   const MOVES={weak:{damage:1,start:2,hit:4,end:11,reach:.64},strong:{damage:2,start:5,hit:8,end:20,reach:.9}};
   const sides=['home','away'], clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   function create(id) {
@@ -8,7 +8,7 @@ const BRAWL = (() => {
     return {id,tick:0,phase:'intro',done:false,winner:null,seq:0,events:[],fighters:{home:fighter(-1.4),away:fighter(1.4)}};
   }
   function input(v) {
-    return {move:v&&Number.isFinite(v.move)?clamp(Math.sign(v.move),-1,1):0,guard:!!(v&&v.guard),
+    return {ready:!!(v&&v.ready),move:v&&Number.isFinite(v.move)?clamp(Math.sign(v.move),-1,1):0,guard:!!(v&&v.guard),
       a:v&&Number.isSafeInteger(v.a)&&v.a>=0?v.a:0,attack:v&&v.attack==='strong'?'strong':'weak'};
   }
   function emit(s,event){s.events.push({seq:++s.seq,tick:s.tick,...event});if(s.events.length>12)s.events.shift();}
@@ -37,7 +37,14 @@ const BRAWL = (() => {
   }
   function step(s,values={}) {
     if(s.done)return s;s.tick++;
-    if(s.phase==='intro'){if(s.tick>=INTRO)s.phase='fight';return s;}
+    if(s.phase==='intro'){if(s.tick>=INTRO)s.phase='ready';return s;}
+    // 両画面の開始アナウンスが終了するまで、CPUも含めて操作・攻撃を止める。
+    if(s.phase==='ready'){
+      if(sides.every(side=>input(values[side]).ready)){
+        s.phase='fight';for(const side of sides)s.fighters[side].lastA=input(values[side]).a;
+      }
+      return s;
+    }
     const controls={home:input(values.home),away:input(values.away)};
     for(const side of sides){
       const f=s.fighters[side],other=s.fighters[side==='home'?'away':'home'],c=controls[side];
@@ -68,7 +75,7 @@ const BRAWL = (() => {
     return s;
   }
   function readSnapshot(v,id){
-    if(!v||v.id!==id||!Number.isSafeInteger(v.tick)||v.tick<0||v.tick>1e7||!['intro','fight','finished'].includes(v.phase)||typeof v.done!=='boolean')return null;
+    if(!v||v.id!==id||!Number.isSafeInteger(v.tick)||v.tick<0||v.tick>1e7||!['intro','ready','fight','finished'].includes(v.phase)||typeof v.done!=='boolean')return null;
     for(const side of sides){const f=v.fighters&&v.fighters[side];if(!f||!Number.isFinite(f.x)||Math.abs(f.x)>LIMIT+.01||!Number.isInteger(f.hp)||f.hp<0||f.hp>HP||![1,-1].includes(f.face)||!['idle','guard','weak','strong'].includes(f.action)||!Number.isInteger(f.frame)||f.frame<0||f.frame>20||!Number.isInteger(f.stun)||f.stun<0||f.stun>8||!Number.isFinite(f.flash)||!Number.isSafeInteger(f.lastA)||f.lastA<0||typeof f.connected!=='boolean'||(f.contactReach!==null&&(!Number.isFinite(f.contactReach)||f.contactReach<0||f.contactReach>1.2)))return null;}
     if(![null,'home','away'].includes(v.winner)||!Number.isSafeInteger(v.seq)||!Array.isArray(v.events)||v.events.length>12)return null;
     if(v.events.some(e=>!Number.isSafeInteger(e.seq)||!['swing','hit','block'].includes(e.kind)||!sides.includes(e.by)||((e.kind==='hit'||e.kind==='block')&&(!sides.includes(e.target)||![0,1,2].includes(e.damage)||!e.at||![e.at.x,e.at.y,e.at.lane].every(Number.isFinite)))))return null;
@@ -82,7 +89,7 @@ const BRAWL = (() => {
   }
   function cpu(s,side,previous){
     const f=s.fighters[side],other=s.fighters[side==='home'?'away':'home'],distance=Math.abs(f.x-other.x),phase=s.tick%90;
-    return {move:distance>1.05?Math.sign(other.x-f.x):0,guard:distance<1.8&&phase>=45&&phase<61,
+    return {ready:true,move:distance>1.05?Math.sign(other.x-f.x):0,guard:distance<1.8&&phase>=45&&phase<61,
       a:previous+(phase===10||phase===35||phase===70?1:0),attack:phase===70?'strong':'weak'};
   }
   return {HZ,INTRO,HP,MOVES,create,input,step,readSnapshot,finishGame,cpu,fistPose};

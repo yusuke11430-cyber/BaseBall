@@ -419,11 +419,12 @@ function audio() {
   if (AC && AC.state === 'suspended') AC.resume();
 }
 // 鳴らせたら true（まだ読み込み中なら false を返し、合成音などで代わりに鳴らす）
-function play(n, vol = 1, rate = 1) {
+function play(n, vol = 1, rate = 1, onEnded) {
   const isVoice = n.startsWith('v_');
   if (!AC || (isVoice ? SND.vol.voice : SND.vol.sfx) <= 0) return !!AC;
   const b = SND.buf[n]; if (!b) return false;
   const src = AC.createBufferSource(), g = AC.createGain(); src.buffer = b; src.playbackRate.value = rate; g.gain.value = vol;
+  if(onEnded)src.onended=onEnded;
   src.connect(g).connect(isVoice ? SND.voice : SND.sfx); src.start(); return true;
 }
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -582,11 +583,12 @@ function pickVoice() {
 if ('speechSynthesis' in window) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { } }
 const VOICE_FILE = { play: 'v_playball', ball: 'v_ball', strike: 'v_strike', whiff: 'v_strike', k: 'v_strikeout', walk: 'v_walk', foul: 'v_foul',
   out: 'v_out', safe: 'v_safe', hit: 'v_hit', double: 'v_double', triple: 'v_triple', hr: 'v_homerun', set: 'v_gameset', deadball: 'v_deadball', fight: 'v_fight' };
-function call2(key) { // 審判・アナウンスの声
-  if (SND.vol.voice <= 0) return;
+function call2(key, onEnded) { // 審判・アナウンスの声
+  if (SND.vol.voice <= 0) { if(onEnded)setTimeout(onEnded,2300);return; }
   const f = VOICE_FILE[key];
-  if (f && AC && SND.buf[f]) return play(f, 1);
+  if (f && AC && SND.buf[f]) return play(f, 1, 1, onEnded);
   shout(CALLS[key] || '');
+  if(onEnded)setTimeout(onEnded,2300); // 未読込時も進行を止め続けない。
 }
 function shout(text, opt = {}) {
   if (SND.vol.voice <= 0 || !text || !('speechSynthesis' in window)) return;
@@ -1283,7 +1285,7 @@ setAim(0, 0.8); setCursor(0, 0.8);
 let drag = null;
 canvas.addEventListener('contextmenu', ev => ev.preventDefault());
 canvas.addEventListener('pointerdown', ev => {
-  if (C.phase === 'brawl') return;
+  if (C.phase === 'brawl') { brawlPointer(ev); return; }
   audio(); canvas.focus({ preventScroll: true });
   if (ev.pointerType === 'mouse' && ev.button === 2) { ev.preventDefault(); setBunt(!ST.b); return; } // 右クリックでバントの構え
 

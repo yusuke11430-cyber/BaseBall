@@ -270,7 +270,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
 </div>
 <div class="sticker brawl-controls" id="brawlControls" hidden>
   <div class="fight-buttons"><button class="act ghost" id="fightLeft" aria-label="左へ移動">◀</button><button class="act ghost" id="fightRight" aria-label="右へ移動">▶</button><button class="act" id="fightWeak">弱攻撃</button><button class="act" id="fightStrong">強攻撃</button><button class="act ghost" id="fightGuard">ガード</button></div>
-  <div class="fight-help">A/D・←/→：移動　J：弱1　K：強2　L・Space：ガード0（押している間）</div>
+  <div class="fight-help">A/D・←/→：移動　左クリック・J：弱1　右クリック・K：強2　L・Space：ガード0（押している間）</div>
 </div>
 
 <div class="sticker panel" id="panel" hidden>
@@ -893,7 +893,7 @@ if (typeof module !== 'undefined') module.exports = AVATAR;
 <script>
 // 乱闘の固定30Hzロジック。オンラインではホーム側1台だけが進め、全員へ状態を配信する。
 const BRAWL = (() => {
-  const HZ=30, INTRO=45, HP=5, LIMIT=5, GAP=.7;
+  const HZ=30, INTRO=48, HP=5, LIMIT=5, GAP=.7;
   const MOVES={weak:{damage:1,start:2,hit:4,end:11,reach:.64},strong:{damage:2,start:5,hit:8,end:20,reach:.9}};
   const sides=['home','away'], clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   function create(id) {
@@ -901,7 +901,7 @@ const BRAWL = (() => {
     return {id,tick:0,phase:'intro',done:false,winner:null,seq:0,events:[],fighters:{home:fighter(-1.4),away:fighter(1.4)}};
   }
   function input(v) {
-    return {move:v&&Number.isFinite(v.move)?clamp(Math.sign(v.move),-1,1):0,guard:!!(v&&v.guard),
+    return {ready:!!(v&&v.ready),move:v&&Number.isFinite(v.move)?clamp(Math.sign(v.move),-1,1):0,guard:!!(v&&v.guard),
       a:v&&Number.isSafeInteger(v.a)&&v.a>=0?v.a:0,attack:v&&v.attack==='strong'?'strong':'weak'};
   }
   function emit(s,event){s.events.push({seq:++s.seq,tick:s.tick,...event});if(s.events.length>12)s.events.shift();}
@@ -930,7 +930,14 @@ const BRAWL = (() => {
   }
   function step(s,values={}) {
     if(s.done)return s;s.tick++;
-    if(s.phase==='intro'){if(s.tick>=INTRO)s.phase='fight';return s;}
+    if(s.phase==='intro'){if(s.tick>=INTRO)s.phase='ready';return s;}
+    // 両画面の開始アナウンスが終了するまで、CPUも含めて操作・攻撃を止める。
+    if(s.phase==='ready'){
+      if(sides.every(side=>input(values[side]).ready)){
+        s.phase='fight';for(const side of sides)s.fighters[side].lastA=input(values[side]).a;
+      }
+      return s;
+    }
     const controls={home:input(values.home),away:input(values.away)};
     for(const side of sides){
       const f=s.fighters[side],other=s.fighters[side==='home'?'away':'home'],c=controls[side];
@@ -961,7 +968,7 @@ const BRAWL = (() => {
     return s;
   }
   function readSnapshot(v,id){
-    if(!v||v.id!==id||!Number.isSafeInteger(v.tick)||v.tick<0||v.tick>1e7||!['intro','fight','finished'].includes(v.phase)||typeof v.done!=='boolean')return null;
+    if(!v||v.id!==id||!Number.isSafeInteger(v.tick)||v.tick<0||v.tick>1e7||!['intro','ready','fight','finished'].includes(v.phase)||typeof v.done!=='boolean')return null;
     for(const side of sides){const f=v.fighters&&v.fighters[side];if(!f||!Number.isFinite(f.x)||Math.abs(f.x)>LIMIT+.01||!Number.isInteger(f.hp)||f.hp<0||f.hp>HP||![1,-1].includes(f.face)||!['idle','guard','weak','strong'].includes(f.action)||!Number.isInteger(f.frame)||f.frame<0||f.frame>20||!Number.isInteger(f.stun)||f.stun<0||f.stun>8||!Number.isFinite(f.flash)||!Number.isSafeInteger(f.lastA)||f.lastA<0||typeof f.connected!=='boolean'||(f.contactReach!==null&&(!Number.isFinite(f.contactReach)||f.contactReach<0||f.contactReach>1.2)))return null;}
     if(![null,'home','away'].includes(v.winner)||!Number.isSafeInteger(v.seq)||!Array.isArray(v.events)||v.events.length>12)return null;
     if(v.events.some(e=>!Number.isSafeInteger(e.seq)||!['swing','hit','block'].includes(e.kind)||!sides.includes(e.by)||((e.kind==='hit'||e.kind==='block')&&(!sides.includes(e.target)||![0,1,2].includes(e.damage)||!e.at||![e.at.x,e.at.y,e.at.lane].every(Number.isFinite)))))return null;
@@ -975,7 +982,7 @@ const BRAWL = (() => {
   }
   function cpu(s,side,previous){
     const f=s.fighters[side],other=s.fighters[side==='home'?'away':'home'],distance=Math.abs(f.x-other.x),phase=s.tick%90;
-    return {move:distance>1.05?Math.sign(other.x-f.x):0,guard:distance<1.8&&phase>=45&&phase<61,
+    return {ready:true,move:distance>1.05?Math.sign(other.x-f.x):0,guard:distance<1.8&&phase>=45&&phase<61,
       a:previous+(phase===10||phase===35||phase===70?1:0),attack:phase===70?'strong':'weak'};
   }
   return {HZ,INTRO,HP,MOVES,create,input,step,readSnapshot,finishGame,cpu,fistPose};
@@ -1405,11 +1412,12 @@ function audio() {
   if (AC && AC.state === 'suspended') AC.resume();
 }
 // 鳴らせたら true（まだ読み込み中なら false を返し、合成音などで代わりに鳴らす）
-function play(n, vol = 1, rate = 1) {
+function play(n, vol = 1, rate = 1, onEnded) {
   const isVoice = n.startsWith('v_');
   if (!AC || (isVoice ? SND.vol.voice : SND.vol.sfx) <= 0) return !!AC;
   const b = SND.buf[n]; if (!b) return false;
   const src = AC.createBufferSource(), g = AC.createGain(); src.buffer = b; src.playbackRate.value = rate; g.gain.value = vol;
+  if(onEnded)src.onended=onEnded;
   src.connect(g).connect(isVoice ? SND.voice : SND.sfx); src.start(); return true;
 }
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -1568,11 +1576,12 @@ function pickVoice() {
 if ('speechSynthesis' in window) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { } }
 const VOICE_FILE = { play: 'v_playball', ball: 'v_ball', strike: 'v_strike', whiff: 'v_strike', k: 'v_strikeout', walk: 'v_walk', foul: 'v_foul',
   out: 'v_out', safe: 'v_safe', hit: 'v_hit', double: 'v_double', triple: 'v_triple', hr: 'v_homerun', set: 'v_gameset', deadball: 'v_deadball', fight: 'v_fight' };
-function call2(key) { // 審判・アナウンスの声
-  if (SND.vol.voice <= 0) return;
+function call2(key, onEnded) { // 審判・アナウンスの声
+  if (SND.vol.voice <= 0) { if(onEnded)setTimeout(onEnded,2300);return; }
   const f = VOICE_FILE[key];
-  if (f && AC && SND.buf[f]) return play(f, 1);
+  if (f && AC && SND.buf[f]) return play(f, 1, 1, onEnded);
   shout(CALLS[key] || '');
+  if(onEnded)setTimeout(onEnded,2300); // 未読込時も進行を止め続けない。
 }
 function shout(text, opt = {}) {
   if (SND.vol.voice <= 0 || !text || !('speechSynthesis' in window)) return;
@@ -2269,7 +2278,7 @@ setAim(0, 0.8); setCursor(0, 0.8);
 let drag = null;
 canvas.addEventListener('contextmenu', ev => ev.preventDefault());
 canvas.addEventListener('pointerdown', ev => {
-  if (C.phase === 'brawl') return;
+  if (C.phase === 'brawl') { brawlPointer(ev); return; }
   audio(); canvas.focus({ preventScroll: true });
   if (ev.pointerType === 'mouse' && ev.button === 2) { ev.preventDefault(); setBunt(!ST.b); return; } // 右クリックでバントの構え
 
@@ -2684,7 +2693,8 @@ function sendBrawlInput(attack) {
   const F=C.brawl;if(!F||C.phase!=='brawl'||C.seat==='spec')return;
   if(attack&&F.state.phase==='fight')F.attackSeq++;
   const old=F.inputs[C.seat]||{};
-  const value={id:F.id,seq:++F.inputSeq,move:(fightKeys.right?1:0)-(fightKeys.left?1:0),guard:fightKeys.guard,a:F.attackSeq,attack:attack||old.attack||'weak'};
+  const active=F.state.phase==='fight';
+  const value={id:F.id,seq:++F.inputSeq,ready:!!F.audioReady,move:active?(fightKeys.right?1:0)-(fightKeys.left?1:0):0,guard:active&&fightKeys.guard,a:F.attackSeq,attack:attack||old.attack||'weak'};
   F.inputs[C.seat]=value;
   if(NET.mode==='online')NET.sendFightInput(value);
 }
@@ -2705,7 +2715,12 @@ function onFightState(wire) {
     startBrawl(wire.cause);
   }
   const F=C.brawl;if(!F||F.authority||F.id!==id||state.tick<F.state.tick)return;
-  F.state=state;consumeFightEvents();if(state.done)finishBrawl();
+  F.state=state;beginBrawlAnnouncement();consumeFightEvents();if(state.done)finishBrawl();
+}
+function beginBrawlAnnouncement() {
+  const F=C.brawl;if(!F||F.announced||F.state.phase!=='ready')return;
+  F.announced=true;
+  call2('fight',()=>{if(C.brawl!==F||C.phase!=='brawl')return;F.audioReady=true;resetBrawlInput();});
 }
 function consumeFightEvents() {
   const F=C.brawl;if(!F)return;
@@ -2739,7 +2754,7 @@ function advanceBrawl(t) {
         if(NET.mode==='cpu'){const cpu=C.seat==='home'?'away':'home';F.inputs[cpu]=BRAWL.cpu(F.state,cpu,(F.inputs[cpu]||{}).a||0);}
         BRAWL.step(F.state,F.inputs);F.acc-=1/BRAWL.HZ;if(F.state.done)break;
       }
-      consumeFightEvents();if(t-F.lastSend>=.1||F.state.done){publishFight();F.lastSend=t;}
+      beginBrawlAnnouncement();consumeFightEvents();if(t-F.lastSend>=.1||F.state.done){publishFight();F.lastSend=t;}
       if(F.state.done)finishBrawl();
     }else{F.acc=0;$('#fightMessage').textContent='相手の再接続を待っています';}
   }
@@ -2748,8 +2763,10 @@ function updateBrawl(t,dt) {
   const F=C.brawl;if(!F)return;
   advanceBrawl(t);
   const s=F.state,intro=BB.clamp(s.tick/BRAWL.INTRO,0,1),eased=ease(intro);
-  if(s.phase==='fight'&&!F.started){F.started=true;call2('fight');banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
+  beginBrawlAnnouncement();
+  if(s.phase==='fight'&&!F.started){F.started=true;resetBrawlInput();banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
   if(s.phase==='intro')$('#fightMessage').textContent='マウンドと本塁の間へ移動中…';
+  else if(s.phase==='ready')$('#fightMessage').textContent=F.audioReady?'相手の開始アナウンスを待っています…':'開始アナウンス中…';
   else if(!s.done&&F.messageUntil&&t>F.messageUntil&& (NET.mode!=='online'||NET.opp||C.seat==='spec')){$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';F.messageUntil=0;}
   if(!s.done&&NET.mode==='online'&&!NET.opp&&C.seat!=='spec')$('#fightMessage').textContent='相手の再接続を待っています';
   for(const side of ['home','away']){
@@ -2780,6 +2797,10 @@ function brawlKey(ev,down) {
   const k=ev.key.toLowerCase(),map={a:'left',arrowleft:'left',d:'right',arrowright:'right',l:'guard',' ':'guard'};
   if(map[k]){ev.preventDefault();fightKeys[map[k]]=down;if(!ev.repeat)sendBrawlInput();}
   else if((k==='j'||k==='k')&&down&&!ev.repeat){ev.preventDefault();audio();sendBrawlInput(k==='j'?'weak':'strong');}
+}
+function brawlPointer(ev) {
+  ev.preventDefault();audio();canvas.focus({preventScroll:true});
+  if(ev.pointerType==='mouse'&&(ev.button===0||ev.button===2))sendBrawlInput(ev.button===2?'strong':'weak');
 }
 for(const [id,key] of [['fightLeft','left'],['fightRight','right'],['fightGuard','guard'],['fightWeak','weak'],['fightStrong','strong']]){
   const button=$('#'+id);

@@ -39,7 +39,8 @@ function sendBrawlInput(attack) {
   const F=C.brawl;if(!F||C.phase!=='brawl'||C.seat==='spec')return;
   if(attack&&F.state.phase==='fight')F.attackSeq++;
   const old=F.inputs[C.seat]||{};
-  const value={id:F.id,seq:++F.inputSeq,move:(fightKeys.right?1:0)-(fightKeys.left?1:0),guard:fightKeys.guard,a:F.attackSeq,attack:attack||old.attack||'weak'};
+  const active=F.state.phase==='fight';
+  const value={id:F.id,seq:++F.inputSeq,ready:!!F.audioReady,move:active?(fightKeys.right?1:0)-(fightKeys.left?1:0):0,guard:active&&fightKeys.guard,a:F.attackSeq,attack:attack||old.attack||'weak'};
   F.inputs[C.seat]=value;
   if(NET.mode==='online')NET.sendFightInput(value);
 }
@@ -60,7 +61,12 @@ function onFightState(wire) {
     startBrawl(wire.cause);
   }
   const F=C.brawl;if(!F||F.authority||F.id!==id||state.tick<F.state.tick)return;
-  F.state=state;consumeFightEvents();if(state.done)finishBrawl();
+  F.state=state;beginBrawlAnnouncement();consumeFightEvents();if(state.done)finishBrawl();
+}
+function beginBrawlAnnouncement() {
+  const F=C.brawl;if(!F||F.announced||F.state.phase!=='ready')return;
+  F.announced=true;
+  call2('fight',()=>{if(C.brawl!==F||C.phase!=='brawl')return;F.audioReady=true;resetBrawlInput();});
 }
 function consumeFightEvents() {
   const F=C.brawl;if(!F)return;
@@ -94,7 +100,7 @@ function advanceBrawl(t) {
         if(NET.mode==='cpu'){const cpu=C.seat==='home'?'away':'home';F.inputs[cpu]=BRAWL.cpu(F.state,cpu,(F.inputs[cpu]||{}).a||0);}
         BRAWL.step(F.state,F.inputs);F.acc-=1/BRAWL.HZ;if(F.state.done)break;
       }
-      consumeFightEvents();if(t-F.lastSend>=.1||F.state.done){publishFight();F.lastSend=t;}
+      beginBrawlAnnouncement();consumeFightEvents();if(t-F.lastSend>=.1||F.state.done){publishFight();F.lastSend=t;}
       if(F.state.done)finishBrawl();
     }else{F.acc=0;$('#fightMessage').textContent='相手の再接続を待っています';}
   }
@@ -103,8 +109,10 @@ function updateBrawl(t,dt) {
   const F=C.brawl;if(!F)return;
   advanceBrawl(t);
   const s=F.state,intro=BB.clamp(s.tick/BRAWL.INTRO,0,1),eased=ease(intro);
-  if(s.phase==='fight'&&!F.started){F.started=true;call2('fight');banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
+  beginBrawlAnnouncement();
+  if(s.phase==='fight'&&!F.started){F.started=true;resetBrawlInput();banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
   if(s.phase==='intro')$('#fightMessage').textContent='マウンドと本塁の間へ移動中…';
+  else if(s.phase==='ready')$('#fightMessage').textContent=F.audioReady?'相手の開始アナウンスを待っています…':'開始アナウンス中…';
   else if(!s.done&&F.messageUntil&&t>F.messageUntil&& (NET.mode!=='online'||NET.opp||C.seat==='spec')){$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';F.messageUntil=0;}
   if(!s.done&&NET.mode==='online'&&!NET.opp&&C.seat!=='spec')$('#fightMessage').textContent='相手の再接続を待っています';
   for(const side of ['home','away']){
@@ -135,6 +143,10 @@ function brawlKey(ev,down) {
   const k=ev.key.toLowerCase(),map={a:'left',arrowleft:'left',d:'right',arrowright:'right',l:'guard',' ':'guard'};
   if(map[k]){ev.preventDefault();fightKeys[map[k]]=down;if(!ev.repeat)sendBrawlInput();}
   else if((k==='j'||k==='k')&&down&&!ev.repeat){ev.preventDefault();audio();sendBrawlInput(k==='j'?'weak':'strong');}
+}
+function brawlPointer(ev) {
+  ev.preventDefault();audio();canvas.focus({preventScroll:true});
+  if(ev.pointerType==='mouse'&&(ev.button===0||ev.button===2))sendBrawlInput(ev.button===2?'strong':'weak');
 }
 for(const [id,key] of [['fightLeft','left'],['fightRight','right'],['fightGuard','guard'],['fightWeak','weak'],['fightStrong','strong']]){
   const button=$('#'+id);
