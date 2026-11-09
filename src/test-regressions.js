@@ -58,7 +58,7 @@ for (const outs of [0, 2]) {
   let advanced;
   const context = { BB, C, guess: { visible: true }, SFX: { hit() {} }, $: () => ({}),
     banner: text => messages.push(text), call: text => messages.push(text), call2: key => calls.push(key),
-    finishPitch: state => { advanced = state; }, startPlay: () => { throw Error('Bunt strikeout shown as ordinary foul'); } };
+    contactFeedback() {}, finishPitch: state => { advanced = state; }, startPlay: () => { throw Error('Bunt strikeout shown as ordinary foul'); } };
   vm.runInNewContext(resolve + '\nresolve();', context);
   assert.ok(messages.includes('スリーバント失敗')); assert.deepEqual(calls, ['k']);
   assert.equal(C.phase, 'call'); assert.equal(advanced.top, outs === 2 ? false : true);

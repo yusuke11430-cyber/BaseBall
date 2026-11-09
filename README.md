@@ -29,6 +29,9 @@ Settings → Pages → Build and deployment
 接続先は `docs/config.js` の `window.MARUTTO_SERVER` で設定します（Render のURLの `https` を `wss` にしたもの）。
 
 ## 遊び方
+- 変化球の曲がり幅は、変化量1〜7のすべてで従来の半分です（ナックルの揺れも対象）。
+- スイング時のカーソルと立ち位置にバットの芯を合わせ、実際の接触位置から打球を開始します。
+- 芯・詰まり・先端・こすり・バントで接触音と表示が変わります。芯で捉えると金色の衝撃が出ます。
 - オセロと同じくRenderへ直接アクセスして起動する入口: https://super-baseball.onrender.com/play
 - 従来のGitHub Pagesも利用できます。直接入口の画面は `server/play.html` にビルドし、音源などはPagesから読み込みます。
 - 「部屋を作る」→ 出てきた4文字のコードか「リンクをコピー」で相手に送る

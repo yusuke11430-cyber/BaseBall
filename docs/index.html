@@ -95,6 +95,10 @@ input.num{width:5.2em;padding:5px 8px;font-family:var(--f-display);font-weight:4
 .timing b{font-family:var(--f-display);font-weight:400;font-size:20px}
 .timing span{font-size:12.5px;font-weight:800;color:var(--muted)}
 .timing.just b{color:#d18a00}.timing.early b{color:var(--home)}.timing.late b{color:var(--away)}.timing.far b{color:var(--muted)}
+.contact-note{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 218px);transform:translateX(-50%);
+  padding:5px 14px;z-index:6;pointer-events:none;font-family:var(--f-display);font-size:18px;white-space:nowrap;
+  opacity:0;transition:opacity .1s;background:#fffdf6}
+.contact-note.show{opacity:1}.contact-note[data-grade="sweet"]{background:#fff1b8;border-color:#a56700;color:#8e5000}
 /* 操作パネル */
 .panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:5;
   width:min(720px,calc(100% - 24px));box-sizing:border-box;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
@@ -242,6 +246,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
 <div class="banner" id="banner"></div>
 <div class="sticker call" id="call"></div>
 <div class="sticker timing" id="timing" aria-live="polite"></div>
+<div class="sticker contact-note" id="contactNote" aria-live="polite"></div>
 
 <div class="sticker panel" id="panel" hidden>
   <div id="pitchUI" hidden>
@@ -392,8 +397,8 @@ const BB = (() => {
   // 変化量 1〜7（4が標準）。大きく曲げるほどスタミナを使う（曲がりの大きい球種ほど負担も大きい）
   const BREAK_MIN = 1, BREAK_MAX = 7, BREAK_STD = 4;
   const noBreak = type => type === 'st'; // ストレートは変化量なし
-  // 各段階の曲がり幅と、隣り合う段階の差を従来の2倍にする。
-  const breakScale = (type, bl) => noBreak(type) ? 1 : 2 * clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) / BREAK_STD;
+  // 変化球は全段階で従来の半分。直球の軌道はそのまま。
+  const breakScale = (type, bl) => noBreak(type) ? 1 : clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) / BREAK_STD;
   function breakCost(type, bl) {
     if (noBreak(type)) return 0;
     const p = PITCHES[type] || PITCHES.st, f = clamp(Math.hypot(p.bx, p.by) / 0.3, 0.3, 1.5) * (p.knuckle ? 1.2 : 1);
@@ -466,9 +471,9 @@ const BB = (() => {
   }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
-  function flight(phi, la, ev, maxT = 7) {
+  function flight(phi, la, ev, maxT = 7, origin = { x: 0, y: 0.9, z: 0 }) {
     const v = ev / 3.6, a = la * Math.PI / 180, h = phi * Math.PI / 180;
-    let px = 0, py = 0.9, pz = 0;
+    let px = origin.x, py = origin.y, pz = origin.z;
     let vh = v * Math.cos(a), vy = v * Math.sin(a);
     let vx = vh * Math.sin(h), vz = -vh * Math.cos(h);
     const pts = []; const dt = 1 / 60; let t = 0, land = null, bounces = 0;
@@ -512,21 +517,32 @@ const BB = (() => {
   // 打者側で結果を決める。cursor: {x,y} 本塁上のミート位置、dt: インパクト時刻 - 本塁到達時刻（null=見逃し）
   // 打者の立ち位置（前後）で、球をとらえる位置が変わる。前に出るほど変化前に打てる
   function contactS(sz) { return clamp(((sz || 0) - RELEASE.z) / (PLATE_Z - RELEASE.z), 0.9, 1.05); }
+  // 判定・打球・衝撃表示が共有する接触位置。
+  const contactPoint = (pi, sz = 0) => pitchPos(pi, contactS(sz));
+  // バットの芯（グリップから66cm）がミートカーソルを通るインパクト姿勢。
+  function swingPose(x, y, sz = 0, lh = false) {
+    const h = lh ? -1 : 1, len = Math.hypot(1, 0.02), dx = h / len, dy = 0.02 / len;
+    return { x: x - dx * 0.66, y: y - dy * 0.66, z: sz };
+  }
   // opt: { lh: 左打席なら true, sz: 立ち位置の前後（-が投手寄り） }
   function judge(pi, cursor, dt, gs, seed, opt = {}) {
     const r = rng(seed), hand = opt.lh ? -1 : 1;
-    const plate = pitchPos(pi, 1), at = pitchPos(pi, contactS(opt.sz));
+    const plate = pitchPos(pi, 1), at = contactPoint(pi, opt.sz);
     const out = { n: pi.n, seed, swung: dt !== null, cx: +cursor.x.toFixed(3), cy: +cursor.y.toFixed(3), lh: !!opt.lh, sz: +(opt.sz || 0).toFixed(2) };
     if (dt === null) { out.kind = inZone(plate.x, plate.y) ? 'strike' : 'ball'; return out; }
     const dx = (at.x - cursor.x) / MEET.rx, dy = (at.y - cursor.y) / MEET.ry;
     const e = dt / TIMING_WIN;
     if (dx * dx + dy * dy > 1 || Math.abs(e) > 1) { out.kind = 'whiff'; return out; }
     out.dt = +dt.toFixed(3);
+    const precision = clamp(1 - 0.5 * e * e - 0.3 * dx * dx - 0.25 * dy * dy, 0, 1);
+    out.quality = +precision.toFixed(3);
+    out.contact = Math.abs(e) <= 0.3 && dx * dx + dy * dy <= 0.18 ? 'sweet'
+      : dx * hand < -0.38 ? 'jam' : dx * hand > 0.38 ? 'tip' : Math.abs(dy) > 0.65 ? 'glance' : 'solid';
     // 芯からのズレで打球の質が決まる
-    const q = clamp(1 - 0.5 * e * e - 0.3 * dx * dx - 0.25 * dy * dy + gauss(r) * 0.04, 0, 1);
+    const q = clamp(precision + gauss(r) * 0.04, 0, 1);
     let phi = hand * (e * 52 - dx * 6) + gauss(r) * 7; // 早いと引っ張り（右打者は左方向）
     let la = 13 + dy * 30 + gauss(r) * 5;
-    if (Math.abs(dy) > 0.8 && r() < 0.5) { out.kind = 'foul'; out.phi = r() < 0.5 ? -60 : 60; out.la = dy > 0 ? 70 : -20; out.ev = 90; return out; }
+    // こすった打球も角度と方向から決める。突然ランダムな横方向のファウルへ置き換えない。
     const ev = clamp(85 + 78 * q + clamp((pi.kmh - 130) * 0.18, -12, 14), 60, 172);
     out.phi = +phi.toFixed(1); out.la = +la.toFixed(1); out.ev = +ev.toFixed(1);
     // 下向きの打球もフェア方向ならゴロ。描画に使う方向と判定をそろえる。
@@ -540,10 +556,11 @@ const BB = (() => {
   const BUNT = { back: 0.40, tip: 0.44, h: 0.075 };
   function judgeBunt(pi, cursor, gs, seed, opt = {}) {
     const r = rng(seed), hand = opt.lh ? -1 : 1;
-    const at = pitchPos(pi, contactS(opt.sz));
+    const at = contactPoint(pi, opt.sz);
     const out = { n: pi.n, seed, swung: true, bunt: true, cx: +cursor.x.toFixed(3), cy: +cursor.y.toFixed(3), lh: !!opt.lh, sz: +(opt.sz || 0).toFixed(2) };
     const rel = (at.x - cursor.x) * hand, dy = (at.y - cursor.y) / BUNT.h;
     if (rel < -BUNT.back || rel > BUNT.tip || Math.abs(dy) > 1) { out.kind = 'whiff'; return out; }
+    out.contact = 'bunt';
     const ev = clamp(48 + 22 * (1 - Math.abs(dy)) + gauss(r) * 6 + clamp((pi.kmh - 130) * 0.05, -4, 6), 30, 85);
     const la = -6 + dy * 30 + gauss(r) * 4;
     const phi = hand * (rel * 55) + gauss(r) * 10;
@@ -676,7 +693,7 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;
 
@@ -1298,7 +1315,12 @@ function tone(freq, dur, gain, type = 'sine') { if (!AC) return; const o = AC.cr
   g.gain.setValueAtTime(gain, AC.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur); o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + dur); }
 // 読み込み前や読み込み失敗時は、合成音で代わりに鳴らす
 const SFX = {
-  hit: (ev = 140) => { if (!play(ev >= 150 ? pick(['s_bat_metal1', 's_bat_metal2']) : pick(['s_bat_wood1', 's_bat_wood2']), 1)) { noise(0.18, 2600, 1.2, 0.9); tone(1650, 0.12, 0.25, 'triangle'); } },
+  hit: (ev = 140, contact = 'solid') => {
+    const sweet = contact === 'sweet', soft = ['jam','tip','glance','bunt'].includes(contact);
+    const gain = sweet ? 1 : contact === 'bunt' ? 0.35 : soft ? 0.6 : 0.85;
+    const names = sweet || (!soft && ev >= 150) ? ['s_bat_metal1','s_bat_metal2'] : ['s_bat_wood1','s_bat_wood2'];
+    if (!play(pick(names), gain)) { noise(soft ? 0.09 : 0.16, soft ? 750 : 2600, 1.2, gain * 0.8); tone(sweet ? 1900 : soft ? 520 : 1300, 0.1, gain * 0.22, 'triangle'); }
+  },
   mitt: () => { if (!play('s_mitt', 0.9)) noise(0.1, 500, 1, 0.8, 'lowpass'); },
   glove: () => { if (!play('s_glove', 0.8)) noise(0.08, 700, 1, 0.6, 'lowpass'); },
   cheer: big => { if (!play(big ? 's_cheer_big' : 's_cheer', 0.8)) noise(2.2, 1200, 0.4, 0.35); },
@@ -1306,6 +1328,35 @@ const SFX = {
   whoosh: () => { if (!play(pick(['s_swing1', 's_swing2']), 0.8)) noise(0.25, 900, 0.8, 0.25); },
   select: () => { play('s_select1', 0.5); },
 };
+
+// 1組のメッシュを再利用し、打撃のたびにオブジェクトを増やさない。
+const CONTACT_NOTES = { sweet: '芯で捉えた！', solid: 'ナイスミート', jam: '詰まった', tip: 'バットの先', glance: 'こすった', bunt: 'バント' };
+const contactRing = new THREE.Mesh(new THREE.RingGeometry(0.075, 0.09, 32), new THREE.MeshBasicMaterial({ color: 0xffb627, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+const contactGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffd25c, transparent: true, depthTest: false, depthWrite: false }));
+contactRing.renderOrder = contactGlow.renderOrder = 12; contactRing.visible = contactGlow.visible = false; scene.add(contactRing, contactGlow);
+let contactFx = null;
+function clearContactFeedback() {
+  contactFx = null; contactRing.visible = contactGlow.visible = false; $('#contactNote').classList.remove('show');
+}
+function contactFeedback(o) {
+  const grade = CONTACT_NOTES[o.contact] ? o.contact : o.bunt ? 'bunt' : 'solid';
+  SFX.hit(o.ev, grade);
+  const at = BB.contactPoint(C.pi, o.sz), sweet = grade === 'sweet';
+  contactFx = { t: now(), grade, at };
+  contactRing.position.set(at.x, at.y, at.z); contactGlow.position.copy(contactRing.position);
+  contactRing.material.color.set(sweet ? 0xffb627 : 0xfff4dc); contactGlow.material.color.set(sweet ? 0xffcf46 : 0xffffff);
+  const note = $('#contactNote'); note.textContent = CONTACT_NOTES[grade]; note.dataset.grade = grade; note.classList.add('show');
+}
+function updateContactFx(t) {
+  if (!contactFx) return;
+  const e = Math.max(0, t - contactFx.t), sweet = contactFx.grade === 'sweet', duration = sweet ? 0.24 : 0.16;
+  const u = BB.clamp(e / duration, 0, 1);
+  contactRing.visible = contactGlow.visible = u < 1;
+  contactRing.quaternion.copy(camera.quaternion); contactRing.scale.setScalar((sweet ? 1 : 0.7) * (1 + u * 2));
+  contactRing.material.opacity = (1 - u) * (sweet ? 1 : 0.65);
+  contactGlow.scale.setScalar((sweet ? 0.3 : 0.16) * (1 + u)); contactGlow.material.opacity = (1 - u) * 0.7;
+  if (e > 1) { $('#contactNote').classList.remove('show'); contactFx = null; }
+}
 
 // ---- スタミナの見た目（頭上ゲージ・汗・湯気・顔色・肩で息） ----
 const SKIN = new THREE.Color('#f3c9a1'), FLUSH = new THREE.Color('#ee7f6f');
@@ -1472,6 +1523,7 @@ function placeTeams() {
 }
 
 function nextPitch() {
+  clearContactFeedback();
   guess.visible = false;
   C.phase = 'ready'; C.pi = null; C.out = null; C.play = null; C.swingAt = null; C.impactAt = null; C.resolved = false;
   renderHUD(); placeTeams(); if (!C.gs.over) setBgm(BB.batSide(C.gs));
@@ -1559,9 +1611,10 @@ function trySwing() {
   const t = now();
   if (C.swingAt !== null && t - C.swingAt < 0.3) return;   // 振っている最中は次を受け付けない
   audio(); SFX.whoosh();
-  C.swingAt = t; C.impactAt = t + BB.SWING_LAG; C.swingY = C.cur.y;
+  C.swingAt = t; C.impactAt = t + BB.SWING_LAG;
+  C.swingX = C.cur.x; C.swingY = C.cur.y; C.swingZ = ST.dz; C.swingLh = ST.lh;
   // 打撃結果とは別に送る。素振り・空振り・同じ球での振り直しも相手に見せる。
-  if (NET.mode === 'online') NET.sendBat({ g: C.gs.gid, n: C.gs.n + 1, q: ++NET.swingSeq, y: C.cur.y });
+  if (NET.mode === 'online') NET.sendBat({ g: C.gs.gid, n: C.gs.n + 1, q: ++NET.swingSeq, x: C.swingX, y: C.swingY, z: C.swingZ, lh: C.swingLh });
   if (C.phase !== 'pitching' || C.out) return;               // 素振り
   const dt = C.impactAt - contactTime();
   // 投げる前・球が来るずっと前・通り過ぎた後のスイングは素振り扱い（ストライクにしない）
@@ -1604,15 +1657,20 @@ function onBatMotion(m) {
   if (NET.seen.has(key)) return;
   NET.seen.add(key); C.remoteSwing = m.g + ':' + m.n + ':' + m.q;
   C.swingAt = now(); C.swingY = BB.clamp(m.y, 0.1, 1.8);
+  C.swingX = Number.isFinite(m.x) ? BB.clamp(m.x, -1, 1) : 0;
+  C.swingZ = Number.isFinite(m.z) ? BB.clamp(m.z, -0.9, 0.6) : (NET.oppSt ? NET.oppSt.dz : 0);
+  C.swingLh = typeof m.lh === 'boolean' ? m.lh : !!(NET.oppSt && NET.oppSt.lh);
 }
 function onSw(o) {
   if (!C.pi || o.n !== C.pi.n || o.g !== C.gs.gid || C.out) return;
   C.out = o;
-  if (o.bunt) { C.impactAt = Math.max(now() + 0.02, plateTime()); C.obsBunt = { x: o.cx, y: o.cy, lh: o.lh }; }
+  if (o.bunt) { C.impactAt = Math.max(now() + 0.02, C.t0 + C.W + C.dur * BB.contactS(o.sz)); C.obsBunt = { x: o.cx, y: o.cy, lh: o.lh, sz: o.sz }; }
   else if (o.swung) {
-    C.impactAt = Math.max(now() + 0.02, plateTime());
+    C.impactAt = Math.max(now() + 0.02, C.t0 + C.W + C.dur * BB.contactS(o.sz));
     // すでに表示した空振りを、結果受信時にもう一度再生しない。旧版との対戦は従来通り。
-    if (C.remoteSwing !== o.g + ':' + o.n + ':' + o.anim) { C.swingAt = C.impactAt - BB.SWING_LAG; C.swingY = o.cy; }
+    if (o.kind === 'inplay' || o.kind === 'foul' || C.remoteSwing !== o.g + ':' + o.n + ':' + o.anim) {
+      C.swingAt = C.impactAt - BB.SWING_LAG; C.swingX = o.cx; C.swingY = o.cy; C.swingZ = o.sz || 0; C.swingLh = !!o.lh;
+    }
   }
 }
 function fieldSide() { return C.gs.top ? 'home' : 'away'; }
@@ -1631,7 +1689,7 @@ function resolve() {
   const sp = $('#speed'); sp.innerHTML = `<span class="pt">${BB.PITCHES[C.pi.type].name}${C.pi.short ? '（失速）' : ''}</span><span class="velocity">${C.pi.kmh}<small>km/h</small></span>`;
   if (o.kind === 'foul' && o.bunt && C.gs.s >= 2) {
     // スリーバントは通常のファウル演出へ送らず、アウトを明示して次の打席へ進める。
-    C.phase = 'call'; guess.visible = false; SFX.hit(o.ev);
+    C.phase = 'call'; guess.visible = false; contactFeedback(o);
     banner('スリーバント失敗', 'out'); call('スリーバント失敗'); call2('k');
     finishPitch(newGs, 1.9);
   } else if (o.kind === 'inplay' || o.kind === 'foul') startPlay(o, newGs);
@@ -1660,12 +1718,13 @@ function finishPitch(newGs, wait) {
 function startPlay(o, newGs) {
   showBallFx(null, false);
   C.phase = 'play'; zone.visible = false; cursor.visible = false; buntBar.visible = false; show('#batUI', false); status('');
-  const fl = BB.flight(o.phi, o.la, o.ev, o.kind === 'foul' ? 1.6 : 7);
-  const at = BB.pitchPos(C.pi, 1);
-  const off = [at.x, at.y - 0.9, 0];
-  const pts = fl.pts.map((p, i) => { const k = Math.max(0, 1 - i / 30); return [p[0] + off[0] * k, p[1] + off[1] * k, p[2]]; });
+  const at = BB.contactPoint(C.pi, o.sz);
+  const fl = BB.flight(o.phi, o.la, o.ev, o.kind === 'foul' ? 1.6 : 7, at);
+  const pts = fl.pts;
   const P = { o, newGs, pts, t0: now(), end: pts.length / 60, chase: null, throwTo: null, held: null, br: 0, shown: false };
-  SFX.hit(o.ev);
+  if (o.bunt) C.obsBunt = { x: o.cx, y: o.cy, lh: o.lh, sz: o.sz };
+  // 接触フレームを一度表示し、その位置から音・衝撃・打球を同時に始める。
+  updateSwing(C.impactAt); contactFeedback(o);
   if (o.kind === 'foul') { P.end = Math.min(P.end, 1.3); C.play = P; pipStart(); call('ファウル'); call2('foul'); finishPlay(P, 1.4); return; }
   const res = o.result;
   const nearest = (x, z, keys) => keys.reduce((b, k) => { const [fx, fz] = fielders[k].userData.base; const d = Math.hypot(fx - x, fz - z); return d < b.d ? { k, d } : b; }, { k: null, d: 1e9 }).k;
@@ -1698,7 +1757,7 @@ function startPlay(o, newGs) {
     P.br = { single: 1, double: 2, triple: 3, hr: 4 }[res];
   }
   if (!P.br) P.br = 0.6; // アウトでも一塁へ走る
-  batRunner.visible = true; batRunner.position.set(VIS.x, 0, 0); batter.visible = false; batPivot.visible = false;
+  batRunner.visible = false; batRunner.position.set(VIS.x, 0, o.sz || 0); P.batterUntil = 0.12;
   C.play = P; cam.mode = 'field'; pipStart();
   const extra = P.throwTo ? 0.55 * P.throwTo.length : 0;
   finishPlay(P, P.end + extra + (res === 'hr' ? 2.4 : 1.3));
@@ -1740,6 +1799,7 @@ function step() {
   if (C.phase === 'play') updatePlay(t);
   updateSwing(t);
   updateCamera(t, dt);
+  updateContactFx(t);
   updateStaminaLook(t, dt);
   updatePip(dt);
   for (let i = confetti.length - 1; i >= 0; i--) {
@@ -1819,7 +1879,7 @@ function updateSwing(t) {
   const ob = !mine && (C.obsBunt || (role() !== 'bat' && VIS.b && C.phase !== 'play') ? (C.obsBunt || { x: 0, y: 0.85 }) : null);
   if (mine || ob) {
     const cx = mine ? C.cur.x : ob.x, cy = mine ? C.cur.y : ob.y;
-    batPivot.position.lerp(new THREE.Vector3(cx - h * BB.BUNT.back, cy, VIS.dz + 0.04), 0.35);
+    batPivot.position.lerp(new THREE.Vector3(cx - h * BB.BUNT.back, cy, (ob && ob.sz != null ? ob.sz : VIS.dz) + 0.04), 0.35);
     batPivot.quaternion.slerp(h > 0 ? BUNT_Q.R : BUNT_Q.L, 0.35);
     batter.rotation.y = (VIS.lh ? -Math.PI / 2 : Math.PI / 2) - h * 0.55; // 投手の方へ体を向ける
     return;
@@ -1830,7 +1890,7 @@ function updateSwing(t) {
   }
   const e = t - C.swingAt;
   if (e < 0) return;
-  const KEYS = keysOf(VIS);
+  const KEYS = keysOf({ lh: C.swingLh ?? VIS.lh });
   let q = KEYS[KEYS.length - 1][1];
   for (let i = 0; i < KEYS.length - 1; i++) {
     const [ta, qa] = KEYS[i], [tb, qb] = KEYS[i + 1];
@@ -1838,7 +1898,8 @@ function updateSwing(t) {
   }
   batPivot.quaternion.copy(q);
   const k = Math.min(1, e / BB.SWING_LAG) * (e < 0.2 ? 1 : Math.max(0, 1 - (e - 0.2) * 4));
-  batPivot.position.set(home.x, lerp(home.y, (C.swingY ?? 0.8) + 0.04, k), home.z);
+  const impact = BB.swingPose(C.swingX ?? 0, C.swingY ?? 0.8, C.swingZ ?? VIS.dz, C.swingLh ?? VIS.lh);
+  batPivot.position.set(lerp(home.x, impact.x, k), lerp(home.y, impact.y, k), lerp(home.z, impact.z, k));
   const tw = (e < 0.32 ? Math.min(1, e / 0.15) : Math.max(0, 1 - (e - 0.32) / 0.23)) * 0.7;
   batter.rotation.y = (VIS.lh ? -Math.PI / 2 : Math.PI / 2) - h * tw;
 }
@@ -1846,6 +1907,9 @@ function updateSwing(t) {
 function updatePlay(t) {
   const P = C.play; if (!P) return;
   const e = Math.max(0, t - P.t0);
+  if (P.batterUntil !== undefined && e >= P.batterUntil) {
+    batter.visible = false; batPivot.visible = false; batRunner.visible = true; delete P.batterUntil;
+  }
   let i = Math.min(P.pts.length - 1, Math.floor(e * 60));
   if (P.held !== null && i >= P.held) i = P.held;
   let bp = P.pts[i];
@@ -2146,6 +2210,7 @@ function enterGame() {
   banner('プレイボール!', 'big'); call2('play'); nextPitch(); canvas.focus({ preventScroll: true });
 }
 function toLobby(card = '#home') {
+  clearContactFeedback();
   resetBallFx();
   pipStop();
   setBgm('lobby'); $('#home').insertBefore($('#soundBar'), $('#home .howto'));

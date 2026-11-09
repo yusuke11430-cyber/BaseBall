@@ -89,6 +89,10 @@ input.num{width:5.2em;padding:5px 8px;font-family:var(--f-display);font-weight:4
 .timing b{font-family:var(--f-display);font-weight:400;font-size:20px}
 .timing span{font-size:12.5px;font-weight:800;color:var(--muted)}
 .timing.just b{color:#d18a00}.timing.early b{color:var(--home)}.timing.late b{color:var(--away)}.timing.far b{color:var(--muted)}
+.contact-note{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 218px);transform:translateX(-50%);
+  padding:5px 14px;z-index:6;pointer-events:none;font-family:var(--f-display);font-size:18px;white-space:nowrap;
+  opacity:0;transition:opacity .1s;background:#fffdf6}
+.contact-note.show{opacity:1}.contact-note[data-grade="sweet"]{background:#fff1b8;border-color:#a56700;color:#8e5000}
 /* 操作パネル */
 .panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:5;
   width:min(720px,calc(100% - 24px));box-sizing:border-box;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
@@ -232,6 +236,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
 <div class="banner" id="banner"></div>
 <div class="sticker call" id="call"></div>
 <div class="sticker timing" id="timing" aria-live="polite"></div>
+<div class="sticker contact-note" id="contactNote" aria-live="polite"></div>
 
 <div class="sticker panel" id="panel" hidden>
   <div id="pitchUI" hidden>

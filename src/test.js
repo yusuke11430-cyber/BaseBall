@@ -4,6 +4,7 @@ require('./test-regressions.js');
 require('./test-online-swing.js');
 require('./test-movement.js');
 require('./test-connection.js');
+require('./test-contact.js');
 // 予測の再現性・接触時の一致と、全球種/変化量/球速/打席前後の有限性。
 let predictionCases=0;
 for(const type of BB.PITCH_KEYS) for(let bl=1;bl<=7;bl++) for(const speed of [20,146,1000]) for(const sz of [-0.9,0,0.6]) {
@@ -48,13 +49,13 @@ for(let seed=1;seed<=30;seed++){
   assert.notDeepEqual(BB.predictContact(pi,.2),BB.predictContact(pi,.6));
   assert.deepEqual(BB.predictContact(pi,contact),BB.pitchPos(pi,contact));
 }
-// 通常の変化球は、同一球速・狙いで旧倍率からの曲がりを2倍にする。
-for(const type of BB.PITCH_KEYS.filter(t=>!['st','kn'].includes(t))) for(let bl=1;bl<=7;bl++) {
+// 全球種・全段階で、変化由来のずれを直前の倍率から半分にする。
+for(const type of BB.PITCH_KEYS.filter(t=>t!=='st')) for(let bl=1;bl<=7;bl++) {
   const pi=BB.makePitch(1,type,0,0.8,42,146,100,bl);
-  const old=BB.pitchPos({...pi,bm:bl/BB.BREAK_STD},0.5);
+  const old=BB.pitchPos({...pi,bm:2*bl/BB.BREAK_STD},0.5);
   const straight=BB.pitchPos({...pi,bm:1e-12},0.5), changed=BB.pitchPos(pi,0.5);
-  assert.ok(Math.abs((changed.x-straight.x)-2*(old.x-straight.x))<1e-10);
-  assert.ok(Math.abs((changed.y-straight.y)-2*(old.y-straight.y))<1e-10);
+  assert.ok(Math.abs((changed.x-straight.x)-0.5*(old.x-straight.x))<1e-10);
+  assert.ok(Math.abs((changed.y-straight.y)-0.5*(old.y-straight.y))<1e-10);
 }
 assert.equal(BB.breakScale('st',7),1);
 // 大きく落ちるフォークは高めの予測から下へ動き、最後に実際の到達位置へ合う。

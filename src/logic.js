@@ -36,8 +36,8 @@ const BB = (() => {
   // 変化量 1〜7（4が標準）。大きく曲げるほどスタミナを使う（曲がりの大きい球種ほど負担も大きい）
   const BREAK_MIN = 1, BREAK_MAX = 7, BREAK_STD = 4;
   const noBreak = type => type === 'st'; // ストレートは変化量なし
-  // 各段階の曲がり幅と、隣り合う段階の差を従来の2倍にする。
-  const breakScale = (type, bl) => noBreak(type) ? 1 : 2 * clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) / BREAK_STD;
+  // 変化球は全段階で従来の半分。直球の軌道はそのまま。
+  const breakScale = (type, bl) => noBreak(type) ? 1 : clamp(bl || BREAK_STD, BREAK_MIN, BREAK_MAX) / BREAK_STD;
   function breakCost(type, bl) {
     if (noBreak(type)) return 0;
     const p = PITCHES[type] || PITCHES.st, f = clamp(Math.hypot(p.bx, p.by) / 0.3, 0.3, 1.5) * (p.knuckle ? 1.2 : 1);
@@ -110,9 +110,9 @@ const BB = (() => {
   }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
-  function flight(phi, la, ev, maxT = 7) {
+  function flight(phi, la, ev, maxT = 7, origin = { x: 0, y: 0.9, z: 0 }) {
     const v = ev / 3.6, a = la * Math.PI / 180, h = phi * Math.PI / 180;
-    let px = 0, py = 0.9, pz = 0;
+    let px = origin.x, py = origin.y, pz = origin.z;
     let vh = v * Math.cos(a), vy = v * Math.sin(a);
     let vx = vh * Math.sin(h), vz = -vh * Math.cos(h);
     const pts = []; const dt = 1 / 60; let t = 0, land = null, bounces = 0;
@@ -156,21 +156,32 @@ const BB = (() => {
   // 打者側で結果を決める。cursor: {x,y} 本塁上のミート位置、dt: インパクト時刻 - 本塁到達時刻（null=見逃し）
   // 打者の立ち位置（前後）で、球をとらえる位置が変わる。前に出るほど変化前に打てる
   function contactS(sz) { return clamp(((sz || 0) - RELEASE.z) / (PLATE_Z - RELEASE.z), 0.9, 1.05); }
+  // 判定・打球・衝撃表示が共有する接触位置。
+  const contactPoint = (pi, sz = 0) => pitchPos(pi, contactS(sz));
+  // バットの芯（グリップから66cm）がミートカーソルを通るインパクト姿勢。
+  function swingPose(x, y, sz = 0, lh = false) {
+    const h = lh ? -1 : 1, len = Math.hypot(1, 0.02), dx = h / len, dy = 0.02 / len;
+    return { x: x - dx * 0.66, y: y - dy * 0.66, z: sz };
+  }
   // opt: { lh: 左打席なら true, sz: 立ち位置の前後（-が投手寄り） }
   function judge(pi, cursor, dt, gs, seed, opt = {}) {
     const r = rng(seed), hand = opt.lh ? -1 : 1;
-    const plate = pitchPos(pi, 1), at = pitchPos(pi, contactS(opt.sz));
+    const plate = pitchPos(pi, 1), at = contactPoint(pi, opt.sz);
     const out = { n: pi.n, seed, swung: dt !== null, cx: +cursor.x.toFixed(3), cy: +cursor.y.toFixed(3), lh: !!opt.lh, sz: +(opt.sz || 0).toFixed(2) };
     if (dt === null) { out.kind = inZone(plate.x, plate.y) ? 'strike' : 'ball'; return out; }
     const dx = (at.x - cursor.x) / MEET.rx, dy = (at.y - cursor.y) / MEET.ry;
     const e = dt / TIMING_WIN;
     if (dx * dx + dy * dy > 1 || Math.abs(e) > 1) { out.kind = 'whiff'; return out; }
     out.dt = +dt.toFixed(3);
+    const precision = clamp(1 - 0.5 * e * e - 0.3 * dx * dx - 0.25 * dy * dy, 0, 1);
+    out.quality = +precision.toFixed(3);
+    out.contact = Math.abs(e) <= 0.3 && dx * dx + dy * dy <= 0.18 ? 'sweet'
+      : dx * hand < -0.38 ? 'jam' : dx * hand > 0.38 ? 'tip' : Math.abs(dy) > 0.65 ? 'glance' : 'solid';
     // 芯からのズレで打球の質が決まる
-    const q = clamp(1 - 0.5 * e * e - 0.3 * dx * dx - 0.25 * dy * dy + gauss(r) * 0.04, 0, 1);
+    const q = clamp(precision + gauss(r) * 0.04, 0, 1);
     let phi = hand * (e * 52 - dx * 6) + gauss(r) * 7; // 早いと引っ張り（右打者は左方向）
     let la = 13 + dy * 30 + gauss(r) * 5;
-    if (Math.abs(dy) > 0.8 && r() < 0.5) { out.kind = 'foul'; out.phi = r() < 0.5 ? -60 : 60; out.la = dy > 0 ? 70 : -20; out.ev = 90; return out; }
+    // こすった打球も角度と方向から決める。突然ランダムな横方向のファウルへ置き換えない。
     const ev = clamp(85 + 78 * q + clamp((pi.kmh - 130) * 0.18, -12, 14), 60, 172);
     out.phi = +phi.toFixed(1); out.la = +la.toFixed(1); out.ev = +ev.toFixed(1);
     // 下向きの打球もフェア方向ならゴロ。描画に使う方向と判定をそろえる。
@@ -184,10 +195,11 @@ const BB = (() => {
   const BUNT = { back: 0.40, tip: 0.44, h: 0.075 };
   function judgeBunt(pi, cursor, gs, seed, opt = {}) {
     const r = rng(seed), hand = opt.lh ? -1 : 1;
-    const at = pitchPos(pi, contactS(opt.sz));
+    const at = contactPoint(pi, opt.sz);
     const out = { n: pi.n, seed, swung: true, bunt: true, cx: +cursor.x.toFixed(3), cy: +cursor.y.toFixed(3), lh: !!opt.lh, sz: +(opt.sz || 0).toFixed(2) };
     const rel = (at.x - cursor.x) * hand, dy = (at.y - cursor.y) / BUNT.h;
     if (rel < -BUNT.back || rel > BUNT.tip || Math.abs(dy) > 1) { out.kind = 'whiff'; return out; }
+    out.contact = 'bunt';
     const ev = clamp(48 + 22 * (1 - Math.abs(dy)) + gauss(r) * 6 + clamp((pi.kmh - 130) * 0.05, -4, 6), 30, 85);
     const la = -6 + dy * 30 + gauss(r) * 4;
     const phi = hand * (rel * 55) + gauss(r) * 10;
@@ -320,6 +332,6 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;
