@@ -392,7 +392,7 @@ addEventListener('resize', resize); resize();
 let AC = null;
 const SND = { raw: {}, buf: {}, vol: { bgm: 5, voice: 20, sfx: 20 }, master: null, sfx: null, voice: null, bgm: null, mode: null, cur: null, duck: 1 };
 const bgmLevel = () => (BGM_VOL[SND.mode] || 0.3) * SND.duck * SND.vol.bgm / 60;
-const SND_NAMES = ['v_playball', 'v_ball', 'v_strike', 'v_strikeout', 'v_walk', 'v_foul', 'v_out', 'v_safe', 'v_hit', 'v_double', 'v_triple', 'v_homerun', 'v_gameset',
+const SND_NAMES = ['v_playball', 'v_ball', 'v_strike', 'v_strikeout', 'v_walk', 'v_foul', 'v_out', 'v_safe', 'v_hit', 'v_double', 'v_triple', 'v_homerun', 'v_gameset', 'v_deadball', 'v_fight',
   's_bat_metal1', 's_bat_metal2', 's_bat_wood1', 's_bat_wood2', 's_mitt', 's_glove', 's_swing1', 's_swing2', 's_cheer', 's_cheer_big', 's_select1', 's_select2',
   's_applause_short', 's_applause_mid', 's_applause_long', 's_applause_far',
   'bgm_lobby', 'bgm_01', 'bgm_02', 'bgm_03', 'bgm_04', 'bgm_05', 'bgm_06', 'bgm_07', 'bgm_08', 'bgm_09', 'bgm_10'];
@@ -581,7 +581,7 @@ function pickVoice() {
 }
 if ('speechSynthesis' in window) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { } }
 const VOICE_FILE = { play: 'v_playball', ball: 'v_ball', strike: 'v_strike', whiff: 'v_strike', k: 'v_strikeout', walk: 'v_walk', foul: 'v_foul',
-  out: 'v_out', safe: 'v_safe', hit: 'v_hit', double: 'v_double', triple: 'v_triple', hr: 'v_homerun', set: 'v_gameset' };
+  out: 'v_out', safe: 'v_safe', hit: 'v_hit', double: 'v_double', triple: 'v_triple', hr: 'v_homerun', set: 'v_gameset', deadball: 'v_deadball', fight: 'v_fight' };
 function call2(key) { // 審判・アナウンスの声
   if (SND.vol.voice <= 0) return;
   const f = VOICE_FILE[key];

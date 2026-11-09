@@ -1379,7 +1379,7 @@ addEventListener('resize', resize); resize();
 let AC = null;
 const SND = { raw: {}, buf: {}, vol: { bgm: 5, voice: 20, sfx: 20 }, master: null, sfx: null, voice: null, bgm: null, mode: null, cur: null, duck: 1 };
 const bgmLevel = () => (BGM_VOL[SND.mode] || 0.3) * SND.duck * SND.vol.bgm / 60;
-const SND_NAMES = ['v_playball', 'v_ball', 'v_strike', 'v_strikeout', 'v_walk', 'v_foul', 'v_out', 'v_safe', 'v_hit', 'v_double', 'v_triple', 'v_homerun', 'v_gameset',
+const SND_NAMES = ['v_playball', 'v_ball', 'v_strike', 'v_strikeout', 'v_walk', 'v_foul', 'v_out', 'v_safe', 'v_hit', 'v_double', 'v_triple', 'v_homerun', 'v_gameset', 'v_deadball', 'v_fight',
   's_bat_metal1', 's_bat_metal2', 's_bat_wood1', 's_bat_wood2', 's_mitt', 's_glove', 's_swing1', 's_swing2', 's_cheer', 's_cheer_big', 's_select1', 's_select2',
   's_applause_short', 's_applause_mid', 's_applause_long', 's_applause_far',
   'bgm_lobby', 'bgm_01', 'bgm_02', 'bgm_03', 'bgm_04', 'bgm_05', 'bgm_06', 'bgm_07', 'bgm_08', 'bgm_09', 'bgm_10'];
@@ -1568,7 +1568,7 @@ function pickVoice() {
 }
 if ('speechSynthesis' in window) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { } }
 const VOICE_FILE = { play: 'v_playball', ball: 'v_ball', strike: 'v_strike', whiff: 'v_strike', k: 'v_strikeout', walk: 'v_walk', foul: 'v_foul',
-  out: 'v_out', safe: 'v_safe', hit: 'v_hit', double: 'v_double', triple: 'v_triple', hr: 'v_homerun', set: 'v_gameset' };
+  out: 'v_out', safe: 'v_safe', hit: 'v_hit', double: 'v_double', triple: 'v_triple', hr: 'v_homerun', set: 'v_gameset', deadball: 'v_deadball', fight: 'v_fight' };
 function call2(key) { // 審判・アナウンスの声
   if (SND.vol.voice <= 0) return;
   const f = VOICE_FILE[key];
@@ -2674,7 +2674,7 @@ function startBrawl(cause) {
   batRunner.visible=false;runners.forEach(p=>p.visible=false);show('#panel',false);show('#aimPad',false);show('#speed',false);show('#hud',false);
   show('#brawlUI',true);show('#brawlControls',C.seat!=='spec');
   $('#fightHomeName').textContent=C.names.home;$('#fightAwayName').textContent=C.names.away;
-  duckBgm(false);setBgm(null);SFX.mitt();banner('デッドボール！','out');canvas.focus({preventScroll:true});
+  duckBgm(false);setBgm(null);SFX.mitt();call2('deadball');banner('デッドボール！','out');canvas.focus({preventScroll:true});
   if(F.authority){publishFight();F.timer=setInterval(()=>{if(C.brawl===F&&C.phase==='brawl')advanceBrawl(now());},1000/BRAWL.HZ);}
 }
 function publishFight() {
@@ -2749,7 +2749,7 @@ function updateBrawl(t,dt) {
   const F=C.brawl;if(!F)return;
   advanceBrawl(t);
   const s=F.state,intro=BB.clamp(s.tick/BRAWL.INTRO,0,1),eased=ease(intro);
-  if(s.phase==='fight'&&!F.started){F.started=true;banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
+  if(s.phase==='fight'&&!F.started){F.started=true;call2('fight');banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
   if(s.phase==='intro')$('#fightMessage').textContent='マウンドと本塁の間へ移動中…';
   else if(!s.done&&F.messageUntil&&t>F.messageUntil&& (NET.mode!=='online'||NET.opp||C.seat==='spec')){$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';F.messageUntil=0;}
   if(!s.done&&NET.mode==='online'&&!NET.opp&&C.seat!=='spec')$('#fightMessage').textContent='相手の再接続を待っています';

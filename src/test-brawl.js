@@ -59,4 +59,18 @@ vm.runInContext(advance,ctx);ctx.advanceBrawl(1);assert.ok(F.state.tick>=B.INTRO
 const tick=F.state.tick;ctx.advanceBrawl(1);assert.equal(F.state.tick,tick);
 NET.opp=null;ctx.advanceBrawl(10);assert.equal(F.state.tick,tick);
 NET.opp={};ctx.advanceBrawl(10.1);assert.ok(F.state.tick<=tick+4);
-console.log('Brawl: swept HBP at all speeds, weak1/strong2/guard0, spacing, dedup, simultaneous KO, snapshots and match termination passed');
+// 移動中は開始音を鳴らさず、戦闘へ移った最初のフレームだけ鳴らす。
+const calls=[],cueF={state:{phase:'intro',tick:0},started:false};
+const cueCtx=vm.createContext({C:{brawl:cueF,seat:'home'},NET:{mode:'cpu'},BRAWL:B,BB,
+ advanceBrawl(){},ease:x=>x,call2:key=>calls.push(key),banner(){},$:()=>({})});
+const cueUpdate=view.slice(view.indexOf('function updateBrawl('),view.indexOf("  for(const side of ['home','away']){",view.indexOf('function updateBrawl(')))+'}';
+vm.runInContext(cueUpdate,cueCtx);cueCtx.updateBrawl(0,.016);assert.deepEqual(calls,[]);
+cueF.state.phase='fight';cueF.state.tick=B.INTRO;cueCtx.updateBrawl(1.5,.016);cueCtx.updateBrawl(1.516,.016);
+assert.deepEqual(calls,['fight']);
+// 追加クリップも既存の「声」チャンネルに流れる。
+const main=fs.readFileSync(__dirname+'/main.js','utf8'),played=[];
+const voiceCtx=vm.createContext({SND:{vol:{voice:20},buf:{v_deadball:{},v_fight:{}}},AC:{},play:n=>played.push(n),shout(){throw Error('Unexpected fallback');}});
+vm.runInContext(main.slice(main.indexOf('const VOICE_FILE ='),main.indexOf('function shout(')),voiceCtx);
+voiceCtx.call2('deadball');voiceCtx.call2('fight');assert.deepEqual(played,['v_deadball','v_fight']);
+voiceCtx.SND.vol.voice=0;voiceCtx.call2('fight');assert.equal(played.length,2);
+console.log('Brawl: HBP, damage, guard, punch contact, synchronization, match termination and voice timing passed');

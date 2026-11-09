@@ -28,7 +28,7 @@ function startBrawl(cause) {
   batRunner.visible=false;runners.forEach(p=>p.visible=false);show('#panel',false);show('#aimPad',false);show('#speed',false);show('#hud',false);
   show('#brawlUI',true);show('#brawlControls',C.seat!=='spec');
   $('#fightHomeName').textContent=C.names.home;$('#fightAwayName').textContent=C.names.away;
-  duckBgm(false);setBgm(null);SFX.mitt();banner('デッドボール！','out');canvas.focus({preventScroll:true});
+  duckBgm(false);setBgm(null);SFX.mitt();call2('deadball');banner('デッドボール！','out');canvas.focus({preventScroll:true});
   if(F.authority){publishFight();F.timer=setInterval(()=>{if(C.brawl===F&&C.phase==='brawl')advanceBrawl(now());},1000/BRAWL.HZ);}
 }
 function publishFight() {
@@ -103,7 +103,7 @@ function updateBrawl(t,dt) {
   const F=C.brawl;if(!F)return;
   advanceBrawl(t);
   const s=F.state,intro=BB.clamp(s.tick/BRAWL.INTRO,0,1),eased=ease(intro);
-  if(s.phase==='fight'&&!F.started){F.started=true;banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
+  if(s.phase==='fight'&&!F.started){F.started=true;call2('fight');banner('乱闘開始！','big');$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';}
   if(s.phase==='intro')$('#fightMessage').textContent='マウンドと本塁の間へ移動中…';
   else if(!s.done&&F.messageUntil&&t>F.messageUntil&& (NET.mode!=='online'||NET.opp||C.seat==='spec')){$('#fightMessage').textContent='弱1・強2・ガード0。体力0で試合終了';F.messageUntil=0;}
   if(!s.done&&NET.mode==='online'&&!NET.opp&&C.seat!=='spec')$('#fightMessage').textContent='相手の再接続を待っています';
