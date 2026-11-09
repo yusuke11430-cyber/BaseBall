@@ -18,6 +18,26 @@ assert.ok(B.readSnapshot(waiting,'wait'));
 B.step(waiting,{home:{ready:true,a:9},away:{ready:true,a:7}});assert.equal(waiting.phase,'fight');
 B.step(waiting,{home:{ready:true,a:9},away:{ready:true,a:7}});assert.equal(waiting.events.length,0);
 function attack(s,side,kind,a,defense={}){const v={[side]:{a,attack:kind},[side==='home'?'away':'home']:defense};for(let i=0;i<=B.MOVES[kind].end;i++)B.step(s,v);}
+// 表裏が替わっても投手は常にマウンド（小さいworld-z）側。
+for(const top of [true,false]){
+ const batting=BB.batSide({top}),pitching=batting==='home'?'away':'home';
+ const fight=B.create('sides:'+top,pitching);
+ assert.equal(fight.moundSide,pitching);assert.equal(fight.fighters[pitching].x,-1.4);assert.equal(fight.fighters[batting].x,1.4);
+ assert.equal(fight.fighters[pitching].face,1);assert.equal(fight.fighters[batting].face,-1);
+ for(let i=0;i<B.INTRO;i++)B.step(fight);
+ B.step(fight,{home:{ready:true},away:{ready:true}});
+ // 接近・押し合いでも、ホーム／アウェイの固定配置に戻らない。
+ for(let i=0;i<50;i++)B.step(fight,{[pitching]:{move:1},[batting]:{move:-1}});
+ assert.ok(fight.fighters[batting].x-fight.fighters[pitching].x>=.7-1e-9);
+ assert.ok(B.readSnapshot(fight,fight.id));
+ fight.fighters[batting].hp=2;attack(fight,pitching,'strong',1);
+ assert.equal(fight.winner,pitching);assert.equal(B.finishGame(BB.newGame(1,'sides'),fight).brawlResult.winner,pitching);
+ // 打者側の攻撃も、左右を逆にしたときと同じ判定になる。
+ const reverse=B.create('reverse:'+top,pitching);
+ for(let i=0;i<B.INTRO;i++)B.step(reverse);B.step(reverse,{home:{ready:true},away:{ready:true}});
+ reverse.fighters[pitching].x=-.45;reverse.fighters[batting].x=.45;
+ attack(reverse,batting,'weak',1);assert.equal(reverse.fighters[pitching].hp,4);
+}
 let s=ready();attack(s,'home','weak',1);assert.equal(s.fighters.away.hp,4);
 const idle=ready();for(let i=0;i<900;i++)B.step(idle,{});assert.equal(idle.fighters.home.hp,5);assert.equal(idle.fighters.away.hp,5);assert.equal(idle.events.length,0);
 // 旧来の±5mを越えて外野・バックネット前の実際の壁まで進める。

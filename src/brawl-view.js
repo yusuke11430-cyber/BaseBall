@@ -16,9 +16,9 @@ function startBrawl(cause) {
   if(!C.gs||!C.pi||cause.g!==C.gs.gid||cause.n!==C.pi.n||C.phase==='over')return;
   const id=cause.g+':'+cause.n;
   if(C.brawl)return;
-  const batSide=BB.batSide(C.gs),state=BRAWL.create(id);
+  const batSide=BB.batSide(C.gs),state=BRAWL.create(id,batSide==='home'?'away':'home');
   C.brawl={id,cause:clone(cause),state,authority:NET.mode==='cpu'||C.seat==='home',models:{[batSide]:batter,[batSide==='home'?'away':'home']:pitcher},
-    from:{home:null,away:null},draw:{home:-1.4,away:1.4},acc:0,lastAdvance:now(),lastSend:-Infinity,eventSeq:0,inputSeq:0,attackSeq:0,inputs:{home:{},away:{}},seenInput:0,finished:false,started:false};
+    from:{home:null,away:null},draw:{home:state.fighters.home.x,away:state.fighters.away.x},acc:0,lastAdvance:now(),lastSend:-Infinity,eventSeq:0,inputSeq:0,attackSeq:0,inputs:{home:{},away:{}},seenInput:0,finished:false,started:false};
   const F=C.brawl;
   for(const side of ['home','away']){F.from[side]=F.models[side].position.clone();F.models[side].visible=true;F.models[side].userData.handL.visible=F.models[side].userData.handR.visible=true;}
   C.token++;C.phase='brawl';C.resolved=true;C.play=null;C.pendingPi=null;C.swingAt=null;

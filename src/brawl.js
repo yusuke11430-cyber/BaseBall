@@ -6,9 +6,9 @@ const BRAWL = (() => {
   const ARENA={origin:ORIGIN,min:wall.min-ORIGIN,max:wall.max-ORIGIN};
   const MOVES={weak:{damage:1,start:2,hit:4,end:11,reach:.64},strong:{damage:2,start:5,hit:8,end:20,reach:.9}};
   const sides=['home','away'], clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
-  function create(id) {
+  function create(id,moundSide='home') {
     const fighter=x=>({x,hp:HP,face:x<0?1:-1,action:'idle',frame:0,lastA:0,stun:0,flash:0,connected:false,contactReach:null});
-    return {id,tick:0,phase:'intro',done:false,winner:null,seq:0,events:[],fighters:{home:fighter(-1.4),away:fighter(1.4)}};
+    return {id,moundSide,tick:0,phase:'intro',done:false,winner:null,seq:0,events:[],fighters:{home:fighter(moundSide==='home'?-1.4:1.4),away:fighter(moundSide==='away'?-1.4:1.4)}};
   }
   function input(v) {
     return {ready:!!(v&&v.ready),move:v&&Number.isFinite(v.move)?clamp(Math.sign(v.move),-1,1):0,guard:!!(v&&v.guard),
@@ -62,7 +62,7 @@ const BRAWL = (() => {
       }
     }
     // 重なりを解消。左右の入れ替わりは起こさず、距離を取って横スクロールできる。
-    const a=s.fighters.home,b=s.fighters.away;
+    const a=s.fighters[s.moundSide],b=s.fighters[s.moundSide==='home'?'away':'home'];
     if(b.x-a.x<GAP){const mid=clamp((a.x+b.x)/2,ARENA.min+GAP/2,ARENA.max-GAP/2);a.x=mid-GAP/2;b.x=mid+GAP/2;}
     const hits=[];
     for(const side of sides){
@@ -74,10 +74,12 @@ const BRAWL = (() => {
     // 同一フレームの攻撃を同時適用し、ホーム側だけ有利にならないようにする。
     for(const h of hits){const o=s.fighters[h.target],f=s.fighters[h.by];f.connected=true;f.contactReach=h.reach;emit(s,{kind:h.damage?'hit':'block',...h});
       if(h.damage){o.hp=Math.max(0,o.hp-h.damage);o.stun=h.damage===2?8:5;o.flash=s.tick+6;o.action='idle';o.frame=0;o.x=clamp(o.x+h.face*(h.damage===2?.25:.15),ARENA.min,ARENA.max);}}
-    if(!a.hp||!b.hp){s.done=true;s.phase='finished';s.winner=a.hp===b.hp?null:a.hp>b.hp?'home':'away';}
+    const home=s.fighters.home,away=s.fighters.away;
+    if(!home.hp||!away.hp){s.done=true;s.phase='finished';s.winner=home.hp===away.hp?null:home.hp>away.hp?'home':'away';}
     return s;
   }
   function readSnapshot(v,id){
+    if(!v||!sides.includes(v.moundSide))return null;
     if(!v||v.id!==id||!Number.isSafeInteger(v.tick)||v.tick<0||v.tick>1e7||!['intro','ready','fight','finished'].includes(v.phase)||typeof v.done!=='boolean')return null;
     for(const side of sides){const f=v.fighters&&v.fighters[side];if(!f||!Number.isFinite(f.x)||f.x<ARENA.min-.01||f.x>ARENA.max+.01||!Number.isInteger(f.hp)||f.hp<0||f.hp>HP||![1,-1].includes(f.face)||!['idle','guard','weak','strong'].includes(f.action)||!Number.isInteger(f.frame)||f.frame<0||f.frame>20||!Number.isInteger(f.stun)||f.stun<0||f.stun>8||!Number.isFinite(f.flash)||!Number.isSafeInteger(f.lastA)||f.lastA<0||typeof f.connected!=='boolean'||(f.contactReach!==null&&(!Number.isFinite(f.contactReach)||f.contactReach<0||f.contactReach>1.2)))return null;}
     if(![null,'home','away'].includes(v.winner)||!Number.isSafeInteger(v.seq)||!Array.isArray(v.events)||v.events.length>12)return null;
