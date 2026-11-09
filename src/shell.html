@@ -93,6 +93,8 @@ input.num{width:5.2em;padding:5px 8px;font-family:var(--f-display);font-weight:4
   padding:5px 14px;z-index:6;pointer-events:none;font-family:var(--f-display);font-size:18px;white-space:nowrap;
   opacity:0;transition:opacity .1s;background:#fffdf6}
 .contact-note.show{opacity:1}.contact-note[data-grade="sweet"]{background:#fff1b8;border-color:#a56700;color:#8e5000}
+@media(max-width:850px){.contact-note{left:max(12px,env(safe-area-inset-left,0px));transform:none;
+  max-width:calc(48vw - 24px);box-sizing:border-box;font-size:15px;white-space:normal}}
 /* 操作パネル */
 .panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:5;
   width:min(720px,calc(100% - 24px));box-sizing:border-box;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
