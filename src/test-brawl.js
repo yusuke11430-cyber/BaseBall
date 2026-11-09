@@ -40,6 +40,31 @@ for(const top of [true,false]){
 }
 let s=ready();attack(s,'home','weak',1);assert.equal(s.fighters.away.hp,4);
 const idle=ready();for(let i=0;i<900;i++)B.step(idle,{});assert.equal(idle.fighters.home.hp,5);assert.equal(idle.fighters.away.hp,5);assert.equal(idle.events.length,0);
+// 呼吸は実ガード中だけ消費。0で防御解除、解除中に回復する。
+for(const side of ['home','away']){
+ const breathing=ready(),f=breathing.fighters[side];
+ for(let i=0;i<B.HZ*4-1;i++)B.step(breathing,{[side]:{guard:true}});
+ assert.equal(f.action,'guard');assert.equal(f.breath,1);
+ B.step(breathing,{[side]:{guard:true}});assert.equal(f.breath,0);assert.equal(f.breathLocked,true);assert.equal(f.action,'idle');
+ // 押しっぱなしでは、回復してもガードが勝手に復帰しない。
+ for(let i=0;i<300;i++)B.step(breathing,{[side]:{guard:true}});
+ assert.equal(f.breath,B.BREATH.MAX);assert.equal(f.breathLocked,true);assert.equal(f.action,'idle');
+ B.step(breathing,{});assert.equal(f.breathLocked,false);
+ B.step(breathing,{[side]:{guard:true}});assert.equal(f.action,'guard');assert.equal(f.breath,B.BREATH.MAX-1);
+ f.breath=0;f.breathLocked=true;f.action='idle';
+ for(let i=0;i<59;i++)B.step(breathing,{});assert.equal(f.breath,29.5);assert.equal(f.breathLocked,true);
+ B.step(breathing,{});assert.equal(f.breath,30);assert.equal(f.breathLocked,false);
+ B.step(breathing,{[side]:{guard:true}});assert.equal(f.action,'guard');assert.equal(f.breath,29);
+ assert.ok(B.readSnapshot(breathing,breathing.id));
+ for(const bad of [NaN,-1,B.BREATH.MAX+1]){
+  const invalid=JSON.parse(JSON.stringify(breathing));invalid.fighters[side].breath=bad;assert.equal(B.readSnapshot(invalid,invalid.id),null);
+ }
+}
+const exhausted=ready();exhausted.fighters.away.breath=0;exhausted.fighters.away.breathLocked=true;
+attack(exhausted,'home','strong',1,{guard:true});assert.equal(exhausted.fighters.away.hp,3);
+const recovering=ready();B.step(recovering,{home:{guard:true}});const used=recovering.fighters.home.breath;
+B.step(recovering,{});assert.equal(recovering.fighters.home.breath,used+B.BREATH.RECOVER);
+for(let i=0;i<300;i++)B.step(recovering,{});assert.equal(recovering.fighters.home.breath,B.BREATH.MAX);
 // 旧来の±5mを越えて外野・バックネット前の実際の壁まで進める。
 const arena=B.ARENA;
 assert.ok(arena.min<-100&&arena.max>25);

@@ -1,13 +1,14 @@
 // 乱闘の固定30Hzロジック。オンラインではホーム側1台だけが進め、全員へ状態を配信する。
 const BRAWL = (() => {
   const HZ=30, INTRO=48, HP=5, GAP=.7;
+  const BREATH={MAX:120,DRAIN:1,RECOVER:.5,RESUME:30}; // 満タンで4秒ガード、解除中は8秒で全回復。
   const field=typeof BB!=='undefined'?BB:require('./logic');
   const ORIGIN=-9,wall=field.stadiumSection('z',0,.4);
   const ARENA={origin:ORIGIN,min:wall.min-ORIGIN,max:wall.max-ORIGIN};
   const MOVES={weak:{damage:1,start:2,hit:4,end:11,reach:.64},strong:{damage:2,start:5,hit:8,end:20,reach:.9}};
   const sides=['home','away'], clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   function create(id,moundSide='home') {
-    const fighter=x=>({x,hp:HP,face:x<0?1:-1,action:'idle',frame:0,lastA:0,stun:0,flash:0,connected:false,contactReach:null});
+    const fighter=x=>({x,hp:HP,breath:BREATH.MAX,breathLocked:false,face:x<0?1:-1,action:'idle',frame:0,lastA:0,stun:0,flash:0,connected:false,contactReach:null});
     return {id,moundSide,tick:0,phase:'intro',done:false,winner:null,seq:0,events:[],fighters:{home:fighter(moundSide==='home'?-1.4:1.4),away:fighter(moundSide==='away'?-1.4:1.4)}};
   }
   function input(v) {
@@ -56,9 +57,17 @@ const BRAWL = (() => {
       const pressed=c.a>f.lastA;if(pressed)f.lastA=c.a;
       if(!MOVES[f.action]&&!f.stun){
         f.face=other.x>=f.x?1:-1;
-        if(c.guard){f.action='guard';f.frame=0;}
+        if(c.guard&&!f.breathLocked&&f.breath>0){f.action='guard';f.frame=0;}
         else if(pressed){f.action=c.attack;f.frame=0;f.connected=false;f.contactReach=null;emit(s,{kind:'swing',by:side});}
         else{f.action='idle';f.x=clamp(f.x+c.move*3/HZ,ARENA.min,ARENA.max);}
+      }
+      if(f.action==='guard'){
+        f.breath=Math.max(0,f.breath-BREATH.DRAIN);
+        if(f.breath===0){f.action='idle';f.breathLocked=true;}
+      }else{
+        f.breath=Math.min(BREATH.MAX,f.breath+BREATH.RECOVER);
+        // 押しっぱなしで自動再ガードを繰り返さず、解除と25%回復を両方待つ。
+        if(f.breathLocked&&f.breath>=BREATH.RESUME&&!c.guard)f.breathLocked=false;
       }
     }
     // 重なりを解消。左右の入れ替わりは起こさず、距離を取って横スクロールできる。
@@ -82,6 +91,7 @@ const BRAWL = (() => {
     if(!v||!sides.includes(v.moundSide))return null;
     if(!v||v.id!==id||!Number.isSafeInteger(v.tick)||v.tick<0||v.tick>1e7||!['intro','ready','fight','finished'].includes(v.phase)||typeof v.done!=='boolean')return null;
     for(const side of sides){const f=v.fighters&&v.fighters[side];if(!f||!Number.isFinite(f.x)||f.x<ARENA.min-.01||f.x>ARENA.max+.01||!Number.isInteger(f.hp)||f.hp<0||f.hp>HP||![1,-1].includes(f.face)||!['idle','guard','weak','strong'].includes(f.action)||!Number.isInteger(f.frame)||f.frame<0||f.frame>20||!Number.isInteger(f.stun)||f.stun<0||f.stun>8||!Number.isFinite(f.flash)||!Number.isSafeInteger(f.lastA)||f.lastA<0||typeof f.connected!=='boolean'||(f.contactReach!==null&&(!Number.isFinite(f.contactReach)||f.contactReach<0||f.contactReach>1.2)))return null;}
+    for(const side of sides){const f=v.fighters[side];if(!Number.isFinite(f.breath)||f.breath<0||f.breath>BREATH.MAX||typeof f.breathLocked!=='boolean'||(f.action==='guard'&&(f.breathLocked||f.breath===0)))return null;}
     if(![null,'home','away'].includes(v.winner)||!Number.isSafeInteger(v.seq)||!Array.isArray(v.events)||v.events.length>12)return null;
     if(v.events.some(e=>!Number.isSafeInteger(e.seq)||!['swing','hit','block'].includes(e.kind)||!sides.includes(e.by)||((e.kind==='hit'||e.kind==='block')&&(!sides.includes(e.target)||![0,1,2].includes(e.damage)||!e.at||![e.at.x,e.at.y,e.at.lane].every(Number.isFinite)))))return null;
     if(v.done&&(v.phase!=='finished'||(v.fighters.home.hp>0&&v.fighters.away.hp>0)))return null;
@@ -104,6 +114,6 @@ const BRAWL = (() => {
     const section=field.stadiumSection('x',mid,.15),side=Math.min(distance,Math.max(.1,-section.min*.85));
     return {x:-side,y:3.1+Math.sqrt(Math.max(0,distance*distance-side*side)),z:mid};
   }
-  return {HZ,INTRO,HP,MOVES,ARENA,create,input,step,readSnapshot,finishGame,cpu,fistPose,cameraFrame};
+  return {HZ,INTRO,HP,BREATH,MOVES,ARENA,create,input,step,readSnapshot,finishGame,cpu,fistPose,cameraFrame};
 })();
 if(typeof module!=='undefined')module.exports=BRAWL;

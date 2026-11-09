@@ -129,6 +129,10 @@ function updateBrawl(t,dt) {
     const cells=$('#fight'+(side==='home'?'Home':'Away')+'Hp').children;
     for(let i=0;i<5;i++)cells[i].classList.toggle('empty',i>=f.hp);
     $('#fight'+(side==='home'?'Home':'Away')+'Value').textContent=f.hp+' / 5';
+    const breath=$('#fight'+(side==='home'?'Home':'Away')+'Breath'),percent=Math.round(f.breath/BRAWL.BREATH.MAX*100);
+    breath.firstElementChild.style.width=percent+'%';breath.setAttribute('aria-valuenow',percent);
+    breath.classList.toggle('low',f.breathLocked||percent<=25);
+    $('#fight'+(side==='home'?'Home':'Away')+'BreathValue').textContent='呼吸 '+percent+'%'+(f.breathLocked?(f.breath<BRAWL.BREATH.RESUME?'・息切れ／回復待ち':'・ガードを離すと復帰'):'');
   }
 }
 function updateBrawlCamera(dt) {
