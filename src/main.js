@@ -621,7 +621,13 @@ const seed = () => (Math.random() * 4294967295) >>> 0;
 
 function show(el, on) { (typeof el === 'string' ? $(el) : el).hidden = !on; }
 function status(html) { $('#status').innerHTML = html || ''; refreshPanel(); }
+function wantsBrawlAdvice(gs,seat) {
+  if(!gs||gs.over||!['home','away'].includes(seat)||BB.batSide(gs)===seat)return false;
+  const opponent=seat==='home'?'away':'home';
+  return gs.inning>=Math.floor(gs.innings*2/3)+1&&gs.score[seat]<gs.score[opponent];
+}
 function refreshPanel() {
+  show('#brawlAdvice',C.phase==='aim'&&wantsBrawlAdvice(C.gs,C.seat));
   const busy = !$('#pitchUI').hidden || !$('#batUI').hidden || $('#status').textContent.trim() !== '';
   $('#panel').hidden = !busy || C.phase === 'lobby' || C.phase === 'over' || C.phase === 'brawl';
 }

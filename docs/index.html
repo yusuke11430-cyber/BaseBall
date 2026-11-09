@@ -124,6 +124,7 @@ input.num{width:5.2em;padding:5px 8px;font-family:var(--f-display);font-weight:4
 .panel button,.panel input,.panel label{pointer-events:auto}
 .panel .hint{font-size:13px;font-weight:800;color:var(--muted);text-align:center}
 .panel .hint b{color:var(--ink)}
+.brawl-advice{margin-top:8px;padding:8px 12px;border:2px dashed #bd642b;border-radius:10px;background:#fff0cf;color:#8d3e1e;font-size:15px;font-weight:900;text-align:center}
 .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:stretch}
 .ptgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .pt-btn{min-width:0;border:3px solid var(--ink);background:#fff;border-radius:12px;padding:4px 6px 3px;cursor:pointer;
@@ -286,6 +287,7 @@ input.code{text-transform:uppercase;letter-spacing:.25em;font-family:var(--f-dis
     </div>
     <div class="hint mouse-only"><b>コース枠</b>の中か、ストライクゾーンの近くを<b>クリック</b>で投球（<b>1〜0</b>で球種・<b>Q/E</b>で変化量・<b>矢印キー</b>＋<b>Space</b>でも可）</div>
     <div class="hint touch-only"><b>コース枠</b>をタップすると投球</div>
+    <div class="brawl-advice" id="brawlAdvice" hidden>乱闘を狙いましょう</div>
   </div>
   <div id="batUI" hidden>
     <div class="row" style="align-items:center">
@@ -1660,7 +1662,13 @@ const seed = () => (Math.random() * 4294967295) >>> 0;
 
 function show(el, on) { (typeof el === 'string' ? $(el) : el).hidden = !on; }
 function status(html) { $('#status').innerHTML = html || ''; refreshPanel(); }
+function wantsBrawlAdvice(gs,seat) {
+  if(!gs||gs.over||!['home','away'].includes(seat)||BB.batSide(gs)===seat)return false;
+  const opponent=seat==='home'?'away':'home';
+  return gs.inning>=Math.floor(gs.innings*2/3)+1&&gs.score[seat]<gs.score[opponent];
+}
 function refreshPanel() {
+  show('#brawlAdvice',C.phase==='aim'&&wantsBrawlAdvice(C.gs,C.seat));
   const busy = !$('#pitchUI').hidden || !$('#batUI').hidden || $('#status').textContent.trim() !== '';
   $('#panel').hidden = !busy || C.phase === 'lobby' || C.phase === 'over' || C.phase === 'brawl';
 }

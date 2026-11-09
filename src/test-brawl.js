@@ -164,6 +164,25 @@ cueCtx.sendBrawlInput('strong');assert.equal(cueF.attackSeq,0);assert.equal(cueF
 cueF.state.phase='fight';cueCtx.sendBrawlInput('weak');assert.equal(cueF.attackSeq,1);assert.equal(cueF.inputs.home.attack,'weak');
 // 追加クリップも既存の「声」チャンネルに流れる。
 const main=fs.readFileSync(__dirname+'/main.js','utf8'),played=[];
+// 終盤の劣勢時に、投手本人の投球準備画面だけへ助言する。
+const adviceNodes={'#brawlAdvice':{hidden:true},'#pitchUI':{hidden:false},'#batUI':{hidden:true},'#status':{textContent:''},'#panel':{hidden:false}};
+const adviceC={phase:'aim',seat:'home',gs:{...BB.newGame(9,'advice'),inning:7,score:{home:1,away:2}}};
+const adviceCtx=vm.createContext({BB,C:adviceC,$:s=>adviceNodes[s],show:(s,on)=>{adviceNodes[s].hidden=!on;}});
+vm.runInContext(main.slice(main.indexOf('function wantsBrawlAdvice('),main.indexOf('let bannerT =')),adviceCtx);
+for(const innings of [1,3,5,9]){
+ const firstLate=Math.floor(innings*2/3)+1;
+ for(const top of [true,false]){
+  const seat=top?'home':'away',opponent=top?'away':'home';
+  const gs={...BB.newGame(innings,'advice'),top,inning:firstLate,score:{[seat]:0,[opponent]:1}};
+  assert.equal(adviceCtx.wantsBrawlAdvice(gs,seat),true);assert.equal(adviceCtx.wantsBrawlAdvice(gs,opponent),false);assert.equal(adviceCtx.wantsBrawlAdvice(gs,'spec'),false);
+  assert.equal(adviceCtx.wantsBrawlAdvice({...gs,inning:firstLate-1},seat),false);
+  assert.equal(adviceCtx.wantsBrawlAdvice({...gs,inning:innings+1},seat),true);
+  assert.equal(adviceCtx.wantsBrawlAdvice({...gs,over:true},seat),false);
+  for(const runs of [1,2])assert.equal(adviceCtx.wantsBrawlAdvice({...gs,score:{[seat]:runs,[opponent]:1}},seat),false);
+ }
+}
+for(const phase of ['aim','wait','pitching','brawl','over','lobby']){adviceC.phase=phase;adviceCtx.refreshPanel();assert.equal(adviceNodes['#brawlAdvice'].hidden,phase!=='aim');}
+adviceC.phase='aim';adviceC.seat='away';adviceCtx.refreshPanel();assert.equal(adviceNodes['#brawlAdvice'].hidden,true);
 const voiceCtx=vm.createContext({SND:{vol:{voice:20},buf:{v_deadball:{},v_fight:{}}},AC:{},play:n=>played.push(n),shout(){throw Error('Unexpected fallback');}});
 vm.runInContext(main.slice(main.indexOf('const VOICE_FILE ='),main.indexOf('function shout(')),voiceCtx);
 voiceCtx.call2('deadball');voiceCtx.call2('fight');assert.deepEqual(played,['v_deadball','v_fight']);
