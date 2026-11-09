@@ -133,9 +133,8 @@ function updateBrawl(t,dt) {
 }
 function updateBrawlCamera(dt) {
   const F=C.brawl,a=F.models.home.position,b=F.models.away.position,mid=(a.z+b.z)/2;
-  const horizontal=2*Math.atan(Math.tan(34*Math.PI/360)*camera.aspect),span=Math.max(4,Math.abs(a.z-b.z)+3);
-  const distance=Math.max(7,span/(2*Math.tan(horizontal/2)));
-  const target=new THREE.Vector3(-distance,3.1,mid),look=new THREE.Vector3(0,1,mid);
+  const frame=BRAWL.cameraFrame(a.z-BRAWL.ARENA.origin,b.z-BRAWL.ARENA.origin,camera.aspect);
+  const target=new THREE.Vector3(frame.x,frame.y,frame.z),look=new THREE.Vector3(0,1,mid);
   const k=1-Math.exp(-dt*4);camera.position.lerp(target,k);cam.look.lerp(look,k);
   cam.fov=lerp(cam.fov||34,34,k);camera.fov=cam.fov;camera.updateProjectionMatrix();camera.lookAt(cam.look);
 }

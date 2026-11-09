@@ -93,14 +93,10 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   plate.rotation.x = -Math.PI / 2; plate.position.set(0, 0.015, 0.215); plate.rotation.z = Math.PI; scene.add(plate);
 
   // フェンス・ファウルゾーンの壁・スタンド
-  const wall = [], outline = [];
+  const wall = [], outline = BB.stadiumOutline();
   const pole = s => { const d = BB.fenceDist(45 * s); return [s * d * Math.SQRT1_2, -d * Math.SQRT1_2]; };
   // 一周閉じた輪郭。長いファウル側の壁も分割して客席と通路の密度をそろえる。
   const pl = pole(-1), pr = pole(1);
-  outline.push(pl);
-  for (let a = 135; a >= 45; a -= 3) { const r = a * Math.PI / 180; outline.push([Math.cos(r) * 18, Math.sin(r) * 18]); }
-  outline.push(pr);
-  for (let a = 42; a >= -42; a -= 3) { const r = a * Math.PI / 180, d = BB.fenceDist(a); outline.push([Math.sin(r) * d, -Math.cos(r) * d]); }
   for (let i = 0; i < outline.length; i++) {
     const a = outline[i], b = outline[(i + 1) % outline.length], count = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5);
     for (let j = 0; j < count; j++) wall.push([lerp(a[0], b[0], j / count), lerp(a[1], b[1], j / count)]);

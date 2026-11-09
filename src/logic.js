@@ -138,6 +138,27 @@ const BB = (() => {
   }
   const FENCE_H = 3.2;
   function fenceDist(phiDeg) { return 96 + 24 * Math.cos(clamp(phiDeg, -45, 45) * 2 * Math.PI / 180); }
+  // 描画と乱闘の衝突判定で同じ、一周閉じた球場外周を使う。
+  function stadiumOutline() {
+    const pole=s=>{const d=fenceDist(45*s);return [s*d*Math.SQRT1_2,-d*Math.SQRT1_2];};
+    const points=[pole(-1)];
+    for(let a=135;a>=45;a-=3){const r=a*Math.PI/180;points.push([Math.cos(r)*18,Math.sin(r)*18]);}
+    points.push(pole(1));
+    for(let a=42;a>=-42;a-=3){const r=a*Math.PI/180,d=fenceDist(a);points.push([Math.sin(r)*d,-Math.cos(r)*d]);}
+    return points;
+  }
+  function stadiumSection(axis,fixed,margin=0) {
+    const points=stadiumOutline(),variable=axis==='x'?0:1,constant=1-variable;
+    let min=-Infinity,max=Infinity;
+    for(let i=0;i<points.length;i++){
+      const a=points[i],b=points[(i+1)%points.length],dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz);
+      let n=[-dz/len,dx/len];if(n[0]*(0-a[0])+n[1]*(-45-a[1])<0)n=n.map(v=>-v);
+      const rhs=margin+n[variable]*a[variable]-n[constant]*(fixed-a[constant]);
+      if(Math.abs(n[variable])<1e-10){if(n[constant]*(fixed-a[constant])<margin)return null;continue;}
+      const edge=rhs/n[variable];if(n[variable]>0)min=Math.max(min,edge);else max=Math.min(max,edge);
+    }
+    return min<=max?{min,max}:null;
+  }
   // フェンス上を越えるか
   function clearsFence(phi, la, ev) {
     const v = ev / 3.6, a = la * Math.PI / 180;
@@ -354,6 +375,6 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, stadiumOutline, stadiumSection, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;

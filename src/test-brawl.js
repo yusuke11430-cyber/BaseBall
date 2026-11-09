@@ -20,6 +20,36 @@ B.step(waiting,{home:{ready:true,a:9},away:{ready:true,a:7}});assert.equal(waiti
 function attack(s,side,kind,a,defense={}){const v={[side]:{a,attack:kind},[side==='home'?'away':'home']:defense};for(let i=0;i<=B.MOVES[kind].end;i++)B.step(s,v);}
 let s=ready();attack(s,'home','weak',1);assert.equal(s.fighters.away.hp,4);
 const idle=ready();for(let i=0;i<900;i++)B.step(idle,{});assert.equal(idle.fighters.home.hp,5);assert.equal(idle.fighters.away.hp,5);assert.equal(idle.events.length,0);
+// 旧来の±5mを越えて外野・バックネット前の実際の壁まで進める。
+const arena=B.ARENA;
+assert.ok(arena.min<-100&&arena.max>25);
+for(const move of [-1,1]){
+ const walk=ready();
+ for(let i=0;i<6000;i++){
+  B.step(walk,{home:{move},away:{move}});
+  for(const side of ['home','away'])assert.ok(walk.fighters[side].x>=arena.min-1e-9&&walk.fighters[side].x<=arena.max+1e-9);
+  assert.ok(walk.fighters.away.x-walk.fighters.home.x>=.7-1e-9);
+ }
+ const edge=move<0?walk.fighters.home.x:walk.fighters.away.x;
+ assert.ok(Math.abs(edge-(move<0?arena.min:arena.max))<1e-9);
+ assert.ok(B.readSnapshot(walk,walk.id));
+ const outside=JSON.parse(JSON.stringify(walk));outside.fighters.home.x=arena.min-1;assert.equal(B.readSnapshot(outside,outside.id),null);
+}
+// 壁際のノックバックも外へ抜けない。
+for(const side of ['home','away']){
+ const corner=ready(),homeAttack=side==='home',target=homeAttack?'away':'home';
+ corner.fighters.home.x=homeAttack?arena.max-.9:arena.min;
+ corner.fighters.away.x=corner.fighters.home.x+.9;
+ attack(corner,side,'strong',1);assert.equal(corner.fighters[target].hp,3);
+ assert.ok(Math.abs(corner.fighters[target].x-(homeAttack?arena.max:arena.min))<1e-9);
+}
+// 両者が離れた場合・両端に寄った場合も、カメラは球場の壁内側に収まる。
+for(const aspect of [.5,1,2])for(const [a,b] of [[arena.min,arena.max],[arena.min,arena.min+.7],[arena.max-.7,arena.max],[-1.4,1.4]]){
+ const frame=B.cameraFrame(a,b,aspect),section=BB.stadiumSection('x',frame.z,.15);
+ assert.ok(Object.values(frame).every(Number.isFinite));assert.ok(frame.x>=section.min&&frame.x<=section.max);assert.ok(frame.y>=3.1);
+}
+const outline=BB.stadiumOutline();assert.equal(outline.length,62);assert.ok(outline.some(([x,z])=>Math.abs(x)<1e-9&&z===-120));
+const center=BB.stadiumSection('z',0,.4);assert.equal(arena.min+arena.origin,center.min);assert.equal(arena.max+arena.origin,center.max);
 s=ready();attack(s,'home','strong',1);assert.equal(s.fighters.away.hp,3);
 const impact=s.events.find(e=>e.kind==='hit');assert.ok(impact&&Number.isFinite(impact.at.lane));
 // 以前の距離判定なら当たっていた間合いでも、拳が体に届かなければ空振り。
