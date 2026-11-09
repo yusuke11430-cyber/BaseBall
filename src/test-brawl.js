@@ -13,6 +13,13 @@ function attack(s,side,kind,a,defense={}){const v={[side]:{a,attack:kind},[side=
 let s=ready();attack(s,'home','weak',1);assert.equal(s.fighters.away.hp,4);
 const idle=ready();for(let i=0;i<900;i++)B.step(idle,{});assert.equal(idle.fighters.home.hp,5);assert.equal(idle.fighters.away.hp,5);assert.equal(idle.events.length,0);
 s=ready();attack(s,'home','strong',1);assert.equal(s.fighters.away.hp,3);
+const impact=s.events.find(e=>e.kind==='hit');assert.ok(impact&&Number.isFinite(impact.at.lane));
+// 以前の距離判定なら当たっていた間合いでも、拳が体に届かなければ空振り。
+for(const [kind,distance] of [['weak',1.25],['strong',1.5]]){s=ready();s.fighters.home.x=-distance/2;s.fighters.away.x=distance/2;attack(s,'home',kind,1);assert.equal(s.fighters.away.hp,5);}
+// 拳の描画と同じ軌道で接触し、その位置で止まる。1発で2回以上ダメージを与えない。
+s=ready();let hitEvent=null;
+for(let i=0;i<12;i++){B.step(s,{home:{a:1,attack:'strong'}});hitEvent=s.events.find(e=>e.kind==='hit');if(hitEvent){const f=s.fighters.home,p=B.fistPose(f);assert.ok(Math.abs(p.z-f.contactReach)<1e-12);assert.ok(Math.abs(hitEvent.at.lane-(f.x+f.face*(p.z+p.radius)))<1e-12);break;}}
+assert.ok(hitEvent);assert.equal(s.events.filter(e=>e.kind==='hit').length,1);
 for(const kind of ['weak','strong']){s=ready();attack(s,'home',kind,1,{guard:true});assert.equal(s.fighters.away.hp,5);assert.ok(s.events.some(e=>e.kind==='block'&&e.damage===0));}
 // 同じ攻撃番号の再送や押しっぱなしで、何度も攻撃しない。
 s=ready();attack(s,'home','weak',1);attack(s,'home','weak',1);assert.equal(s.fighters.away.hp,4);
@@ -40,6 +47,11 @@ const pi=BB.makePitch(1,'st',-.62,.8,42,146,100,4),after=BB.apply(gs,{kind:'hbp'
 assert.equal(after.n,1);assert.equal(after.over,false);assert.deepEqual(after.bases,gs.bases);assert.match(after.msg,/乱闘/);
 // 描画と定期タイマーの両方から呼んでも二重進行せず、描画が間引かれても実時間で進む。
 const view=fs.readFileSync(__dirname+'/brawl-view.js','utf8');
+assert.match(view,/const fist=BRAWL\.fistPose\(f\)/);
+const shell=fs.readFileSync(__dirname+'/shell.html','utf8');
+assert.match(shell,/id="brawlUI"[^>]* hidden/);assert.match(shell,/id="brawlControls" hidden/);
+const howto=shell.slice(shell.indexOf('<div class="lobby"'),shell.indexOf('<div class="studio"'));
+assert.ok(!/乱闘|fightWeak|fightStrong/.test(howto));
 const advance=view.slice(view.indexOf('function advanceBrawl('),view.indexOf('function updateBrawl('));
 const F={state:ready(),authority:true,inputs:{},lastAdvance:0,lastSend:0,acc:0},C={brawl:F,phase:'brawl'},NET={mode:'online',opp:{}};
 const ctx=vm.createContext({C,NET,BRAWL:B,consumeFightEvents(){},publishFight(){},finishBrawl(){},$:()=>({})});

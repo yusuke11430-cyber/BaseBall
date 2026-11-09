@@ -70,7 +70,7 @@ function consumeFightEvents() {
       if(e.kind==='block')SFX.mitt();else SFX.glove();
       $('#fightMessage').textContent=e.damage?`${e.damage===2?'強':'弱'}攻撃！ ${e.damage}ダメージ`:'ガード！ 0ダメージ';
       F.messageUntil=now()+.65;
-      const target=F.models[e.target],at={x:target.position.x,y:.95,z:target.position.z};
+      const target=F.models[e.target],at=e.at?{x:e.at.x,y:e.at.y,z:-9+e.at.lane}:{x:target.position.x,y:.95,z:target.position.z};
       contactFx={t:now(),grade:e.damage===2?'sweet':'solid',at};contactRing.position.set(at.x,at.y,at.z);contactGlow.position.copy(contactRing.position);
       contactRing.material.color.set(e.damage?0xffb627:0x7cc6f2);contactGlow.material.color.set(e.damage?0xffd25c:0x7cc6f2);
     }
@@ -114,9 +114,9 @@ function updateBrawl(t,dt) {
     if(s.phase==='intro'){p.position.lerpVectors(F.from[side],new THREE.Vector3(0,0,z),eased);runPose(p,t,true);}
     else{p.position.set(0,0,z);runPose(p,t,f.action==='idle'&&(moving||Math.abs((F.inputs[side]||{}).move||0)>0));}
     p.rotation.y=f.face>0?0:Math.PI;p.rotation.x=0;p.rotation.z=!f.hp?f.face*.9:f.stun?Math.sin(t*70)*.06:0;
-    const m=BRAWL.MOVES[f.action],punch=m?Math.sin(Math.min(1,f.frame/(m.hit*2))*Math.PI):0;
-    u.handL.position.set(f.action==='guard'?-.12:-.3,f.action==='guard'?1.18:.9,f.action==='guard'?.28:.2);
-    u.handR.position.set(f.action==='guard'?.12:.3,f.action==='guard'?1.18:.95,f.action==='guard'?.28:.2+punch*.65);
+    const fist=BRAWL.fistPose(f);
+    u.handL.position.set(f.action==='guard'?-.12:-.3,f.action==='guard'?1.06:.9,f.action==='guard'?.38:.2);
+    u.handR.position.set(f.action==='guard'?.12:fist.x,f.action==='guard'?1.06:fist.y,f.action==='guard'?.38:fist.z);
     if(!f.hp)p.position.y=-.15;
     const cells=$('#fight'+(side==='home'?'Home':'Away')+'Hp').children;
     for(let i=0;i<5;i++)cells[i].classList.toggle('empty',i>=f.hp);
