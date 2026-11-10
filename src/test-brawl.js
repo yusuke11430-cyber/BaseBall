@@ -135,6 +135,17 @@ const shell=fs.readFileSync(__dirname+'/shell.html','utf8');
 assert.match(shell,/id="brawlUI"[^>]* hidden/);assert.match(shell,/id="brawlControls" hidden/);
 const howto=shell.slice(shell.indexOf('<div class="lobby"'),shell.indexOf('<div class="studio"'));
 assert.ok(!/乱闘|fightWeak|fightStrong/.test(howto));
+// 体力・名前・呼吸の列は、ホーム固定ではなく実際の画面上の左右へ並ぶ。
+for(const moundSide of ['home','away'])for(const sign of [1,-1])for(const seat of ['home','away','spec']){
+ const state=B.create('bars',moundSide),models={};for(const side of ['home','away'])models[side]={position:{z:B.ARENA.origin+state.fighters[side].x}};
+ const F={models},nodes={'#fightHomePlayer':{style:{},classList:{toggle(){}}},'#fightAwayPlayer':{style:{},classList:{toggle(){}}}};
+ const projection={copy(v){this.value=v;return this;},project(camera){this.x=this.value.z*camera.sign;return this;}};
+ const ctx=vm.createContext({C:{brawl:F,seat},camera:{sign,updateMatrixWorld(){}},fightProjection:projection,$:id=>nodes[id]});
+ vm.runInContext(view.slice(view.indexOf('function alignBrawlBars('),view.indexOf('function brawlKey(')),ctx);ctx.alignBrawlBars();
+ const homeLeft=models.home.position.z*sign<models.away.position.z*sign;
+ assert.equal(nodes['#fightHomePlayer'].style.order,homeLeft?'0':'1');assert.equal(nodes['#fightAwayPlayer'].style.order,homeLeft?'1':'0');
+ ctx.camera.sign=-sign;ctx.alignBrawlBars();assert.equal(nodes['#fightHomePlayer'].style.order,homeLeft?'1':'0');
+}
 const advance=view.slice(view.indexOf('function advanceBrawl('),view.indexOf('function updateBrawl('));
 const F={state:ready(),authority:true,inputs:{},lastAdvance:0,lastSend:0,acc:0},C={brawl:F,phase:'brawl'},NET={mode:'online',opp:{}};
 const ctx=vm.createContext({C,NET,BRAWL:B,beginBrawlAnnouncement(){},consumeFightEvents(){},publishFight(){},finishBrawl(){},$:()=>({})});

@@ -70,7 +70,7 @@ mainブランチとは分かれているため、キャラ保存でゲーム本�
 開発時は `python src/build.py` → `node src/test.js` → `node server/test-characters.js` で検証します。
 `src/avatar.js` が見た目設定と描画の元ファイルです。ビルド時に `server/avatar-schema.js` へ同じスキーマを生成します。
 
-UIのスタイルは `src/ui.css` にまとめています。ビルド時にHTMLへ埋め込みます。フォントは端末標準のものを使用し、UIの背景ぼかしや追加の3D描画は使いません。
+UIの共通スタイルは `src/ui.css`、タイトル画面は `src/title.css`、メニューの表示切替は `src/title-menu.js` にまとめています。ビルド時にHTMLへ埋め込みます。フォントは端末標準のものを使用し、UIの背景ぼかしや追加の3D描画は使いません。
 
 球場広告の画像・動画は `docs/media/` にあります。提供されたRAgTimeのロゴと料理写真をWebPへ縮小し、2本の動画は縦横比を保った512×288・15fps・音声なしのMP4へ変換しています。元ファイルを置いたフォルダを指定して `python src/process-sponsor.py <folder>` で再生成できます。
 

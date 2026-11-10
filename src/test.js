@@ -6,6 +6,7 @@ require('./test-movement.js');
 require('./test-connection.js');
 require('./test-contact.js');
 require('./test-brawl.js');
+require('./test-title-menu.js');
 require('./test-render-resources.js').catch(err=>{console.error(err);process.exitCode=1;});
 // 予測の再現性・接触時の一致と、全球種/変化量/球速/打席前後の有限性。
 let predictionCases=0;

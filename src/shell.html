@@ -32,8 +32,8 @@
 <div class="sticker contact-note" id="contactNote" aria-live="polite"></div>
 <div class="sticker brawl-ui" id="brawlUI" aria-label="乱闘の体力" hidden>
   <div class="fight-title">乱闘</div><div class="fight-bars">
-    <div class="fight-player"><b id="fightHomeName">ホーム</b><div class="fight-health" id="fightHomeHp"><i></i><i></i><i></i><i></i><i></i></div><small id="fightHomeValue">5 / 5</small><div class="fight-breath" id="fightHomeBreath" role="progressbar" aria-label="ホームの呼吸" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i></div><small class="fight-breath-label" id="fightHomeBreathValue">呼吸 100%</small></div>
-    <div class="fight-player away"><b id="fightAwayName">ビジター</b><div class="fight-health" id="fightAwayHp"><i></i><i></i><i></i><i></i><i></i></div><small id="fightAwayValue">5 / 5</small><div class="fight-breath" id="fightAwayBreath" role="progressbar" aria-label="ビジターの呼吸" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i></div><small class="fight-breath-label" id="fightAwayBreathValue">呼吸 100%</small></div>
+    <div class="fight-player" id="fightHomePlayer"><b id="fightHomeName">ホーム</b><div class="fight-health" id="fightHomeHp"><i></i><i></i><i></i><i></i><i></i></div><small id="fightHomeValue">5 / 5</small><div class="fight-breath" id="fightHomeBreath" role="progressbar" aria-label="ホームの呼吸" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i></div><small class="fight-breath-label" id="fightHomeBreathValue">呼吸 100%</small></div>
+    <div class="fight-player away" id="fightAwayPlayer"><b id="fightAwayName">ビジター</b><div class="fight-health" id="fightAwayHp"><i></i><i></i><i></i><i></i><i></i></div><small id="fightAwayValue">5 / 5</small><div class="fight-breath" id="fightAwayBreath" role="progressbar" aria-label="ビジターの呼吸" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i></div><small class="fight-breath-label" id="fightAwayBreathValue">呼吸 100%</small></div>
   </div><div class="fight-message" id="fightMessage" aria-live="polite"></div>
 </div>
 <div class="sticker brawl-controls" id="brawlControls" hidden>
@@ -80,39 +80,51 @@
 </div>
 
 <div class="lobby" id="lobby">
-  <div class="sticker card" id="home">
-    <header class="lobby-brand">
-      <p class="brand-kicker">ONLINE BASEBALL</p>
-      <h1 class="logo brand"><span>Super</span> <span>Hage</span><span class="brand-baseball">BaseBall</span></h1>
-      <p class="tag">部屋コードで、すぐに対戦。<br>アカウント不要のオンライン野球</p>
-      <svg class="brand-field" viewBox="0 0 220 220" fill="none" aria-hidden="true">
-        <path d="M110 190 20 100Q110-14 200 100Z" stroke="currentColor" stroke-width="1"/>
-        <path d="m110 175-52-52 52-52 52 52Z" stroke="currentColor"/>
-        <path d="M110 175v-43m0-2v-7M58 123l-24-24m128 24 24-24" stroke="currentColor"/>
-        <path d="m110 169-5 5v5h10v-5Z" fill="#e4b775"/>
-        <path d="m110 66-5 5 5 5 5-5ZM53 123l5 5 5-5-5-5Zm104 0 5 5 5-5-5-5Z" fill="currentColor"/>
-        <circle cx="110" cy="123" r="6" stroke="currentColor"/>
-      </svg>
-      <p class="brand-footer">SUPER HAGE BASEBALL</p>
+  <div class="title-screen" id="home">
+    <header class="title-brand">
+      <h1 class="game-logo"><span class="sr-only">Super Hage BaseBall</span>
+        <svg viewBox="0 0 470 180" aria-hidden="true" focusable="false">
+          <g transform="translate(14 0) skewX(-7)">
+            <path d="M20 15h410l-8 59H8Z" fill="#112b50"/>
+            <text x="28" y="61" fill="#fff" font-family="Impact,Arial Black,sans-serif" font-size="50" font-weight="900" textLength="377" lengthAdjust="spacingAndGlyphs">SUPER HAGE</text>
+            <path d="M12 80h444l-12 78H0Z" fill="#fff" stroke="#112b50" stroke-width="5"/>
+            <text x="15" y="144" fill="#143765" font-family="Impact,Arial Black,sans-serif" font-size="72" font-weight="900" textLength="420" lengthAdjust="spacingAndGlyphs">BASEBALL</text>
+            <path d="M16 165h420l-8 10H10Z" fill="#e94d3f"/>
+          </g>
+          <circle cx="433" cy="42" r="27" fill="#fff" stroke="#112b50" stroke-width="4"/>
+          <path d="M420 20q22 22 0 44m25-44q-22 22 0 44" fill="none" stroke="#e94d3f" stroke-width="3" stroke-dasharray="4 3"/>
+        </svg>
+      </h1>
+      <p class="title-jp">スーパーハゲベースボール</p>
     </header>
-    <h2 class="lobby-section">試合の準備</h2>
-    <div class="setup-row">
+    <nav class="title-menu" aria-label="メインメニュー">
+      <button class="mode-btn primary" id="titleCreate" data-title-panel aria-controls="matchSetup" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m16 3 13 13-13 13L3 16Z"/><path d="M16 9v14M9 16h14"/></svg><span>対戦部屋をつくる</span></button>
+      <button class="mode-btn" id="titleJoin" data-title-panel aria-controls="matchSetup" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M18 5h10v22H18M3 16h18m-7-7 7 7-7 7"/></svg><span>部屋コードで入る</span></button>
+      <button class="mode-btn" id="titlePractice" data-title-panel aria-controls="matchSetup" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m5 27 16-18 6-4 2 2-4 6L8 30Z"/><circle cx="7" cy="7" r="4"/></svg><span>CPUと練習</span></button>
+      <button class="mode-btn" id="characterBtn"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="10" r="6"/><path d="M5 29v-5q1-9 11-9t11 9v5M10 7h14"/></svg><span>選手を選ぶ・作る</span></button>
+    </nav>
+    <p class="title-player" id="characterSummary">試合ごとに選手を選べます</p>
+    <footer class="title-footer">
+      <div class="title-tools"><button id="titleSettingsBtn" data-title-panel aria-controls="titleSettings" aria-expanded="false">設定</button><button id="titleHelpBtn" data-title-panel aria-controls="titleHelp" aria-expanded="false">あそびかた</button></div>
+      <p class="note" id="onlineNote">オンライン接続を確認しています…</p>
+      <p class="title-credit">協賛 RAgTime（ラグタイム）</p>
+    </footer>
+    <section class="title-sheet" id="matchSetup" role="dialog" aria-modal="true" aria-labelledby="setupTitle" hidden>
+      <header><h2 id="setupTitle">対戦部屋をつくる</h2><button class="sheet-close" id="setupClose">戻る</button></header>
       <label class="fld" for="nick">プレイヤー名<input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー"></label>
-      <div class="fld">イニング数<div class="seg" id="innSeg" role="group" aria-label="イニング数">
-        <button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button>
-      </div></div>
-    </div>
-    <div class="character-entry"><p id="characterSummary">試合前に共有キャラを選ぶか、新しく作れます</p><button class="act ghost small" id="characterBtn" type="button">選手を選ぶ・作る</button></div>
-    <div class="split"><button class="act" id="createBtn">部屋を作る</button><span class="note">部屋コードを相手に伝えて<br>オンライン対戦</span></div>
-    <div class="split"><input class="txt code" id="codeIn" maxlength="4" placeholder="部屋コード" autocomplete="off" aria-label="部屋コード"><button class="act ghost" id="joinBtn">部屋に入る</button></div>
-    <p class="note" id="onlineNote">オンライン接続を確認しています…</p>
-    <div class="hr"></div>
-    <div class="split"><button class="act ghost" id="cpuBtn">CPUと練習する</button></div>
-    <dl class="howto">
-      <dt>投手</dt><dd>球種とコースを選んで投球。球速は20〜1000km/h。</dd>
-      <dt>打者</dt><dd>青い予測円を目安に、カーソルを合わせてスイング。早いと引っ張り、遅いと流し打ち。</dd>
-    </dl>
-    <p class="note credit">協賛：RAgTime（ラグタイム）<br>BGM・応援歌：ニコニ・コモンズ ／ 3D表示：three.js</p>
+      <div class="fld" id="inningsSetup">イニング数<div class="seg" id="innSeg" role="group" aria-label="イニング数"><button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button></div></div>
+      <div class="fld" id="codeEntry" hidden><label for="codeIn">4文字の部屋コード</label><input class="txt code" id="codeIn" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="部屋コード"></div>
+      <p class="sheet-error" id="setupStatus" role="alert" hidden></p>
+      <p class="sheet-note">次に、この試合で使う選手を選びます。</p>
+      <button class="act" id="createBtn">部屋をつくる</button><button class="act" id="joinBtn" hidden>この部屋に入る</button><button class="act" id="cpuBtn" hidden>練習をはじめる</button>
+    </section>
+    <section class="title-sheet" id="titleSettings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden><header><h2 id="settingsTitle">サウンド設定</h2><button class="sheet-close" id="settingsClose">戻る</button></header><div id="lobbySound"></div></section>
+    <section class="title-sheet" id="titleHelp" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+      <header><h2 id="helpTitle">あそびかた</h2><button class="sheet-close" id="helpClose">戻る</button></header>
+      <dl class="howto"><dt>投球</dt><dd>球種とコースを選んでクリック。<kbd>1</kbd>〜<kbd>0</kbd>で球種、<kbd>Q</kbd><kbd>E</kbd>で変化量。</dd><dt>打撃</dt><dd>マウスでミートカーソル、左クリックでスイング。右クリックでバント。</dd><dt>立ち位置</dt><dd><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>で移動。ベースに近づくと外角、離れると内角に対応しやすくなります。<kbd>X</kbd>で打席切替。</dd></dl>
+      <p class="note">タッチ操作では、画面のボタンとコース枠を使います。</p>
+      <p class="note credit">BGM・応援歌：ニコニ・コモンズ ／ 3D表示：three.js</p>
+    </section>
   </div>
 
   <div class="sticker card" id="wait" hidden>

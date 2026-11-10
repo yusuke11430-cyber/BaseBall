@@ -1195,7 +1195,9 @@ function updateCamera(t, dt) {
   if (C.brawl) { updateBrawlCamera(dt); return; }
   const k = 1 - Math.pow(0.002, dt);
   if (cam.mode === 'lobby') {
-    const a = t * 0.06; camera.position.set(Math.sin(a) * 75, 34, -40 + Math.cos(a) * 75); cam.look.set(0, 0, -45); camera.lookAt(cam.look); return;
+    const mobile=camera.aspect<1;
+    const titleFov=mobile?50:42;if(camera.fov!==titleFov){camera.fov=titleFov;cam.fov=titleFov;camera.updateProjectionMatrix();}
+    camera.position.set(mobile?1.5:2.6,1.7,mobile?4.8:4.2);cam.look.set(mobile?-.35:-.4,.9,0);camera.lookAt(cam.look);return;
   }
   const wantFov = cam.mode === 'pitch' ? PITCH_CAM.fov : cam.mode === 'mound' ? MOUND_CAM.fov : FIELD_FOV;
   if (Math.abs(cam.fov - wantFov) > 0.01) { cam.fov = lerp(cam.fov, wantFov, Math.min(1, k * 2.2)); camera.fov = cam.fov; camera.updateProjectionMatrix(); }
@@ -1419,6 +1421,8 @@ function enterGame() {
   clearBrawl();
   C.token++;
   show('#lobby', false); show('#hud', true); show('#menuBtn', true); document.body.appendChild($('#soundBar'));
+  batter.userData.handL.visible=batter.userData.handR.visible=false;
+  catcher.visible=true;
   banner('プレイボール!', 'big'); call2('play'); nextPitch(); canvas.focus({ preventScroll: true });
 }
 function toLobby(card = '#home') {
@@ -1426,10 +1430,12 @@ function toLobby(card = '#home') {
   clearContactFeedback();
   resetBallFx();
   pipStop();
-  setBgm('lobby'); $('#home').insertBefore($('#soundBar'), $('#home .howto'));
+  setBgm('lobby'); $('#lobbySound').appendChild($('#soundBar'));closeTitlePanels(false);
+  clearTimeout(bannerT);$('#banner').className='banner';clearTimeout(callT);$('#call').classList.remove('show');$('#timing').classList.remove('show');gauge.sp.visible=false;
   C.token++; C.phase = 'lobby'; C.gs = null; C.pi = null; C.play = null; cam.mode = 'lobby';
   ['#hud', '#panel', '#speed', '#menuBtn', '#aimPad'].forEach(s => show(s, false));
   zone.visible = cursor.visible = aim.visible = guess.visible = ball.visible = ballShadow.visible = false;
+  setTitlePlayer();
   show('#lobby', true); ['#home', '#wait', '#final'].forEach(s => show(s, s === card));
 }
 function gameOver() {
@@ -1703,7 +1709,8 @@ document.querySelectorAll('#innSeg button').forEach(b => b.addEventListener('cli
 $('#createBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => goOnline(newCode(), true)); });
 $('#joinBtn').addEventListener('click', () => {
   audio(); const c = $('#codeIn').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (c.length !== 4) { $('#codeIn').focus(); $('#onlineNote').textContent = '4文字の部屋コードを入力してください'; return; }
+  if (c.length !== 4) { $('#codeIn').focus(); $('#setupStatus').textContent = '4文字の部屋コードを入力してください';show('#setupStatus',true);return; }
+  show('#setupStatus',false);
   openCharacterStudio(() => goOnline(c, false));
 });
 $('#codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#joinBtn').click(); });
@@ -1849,6 +1856,7 @@ function renderAvatarPreview() {
 }
 function openCharacterStudio(pending = null) {
   if (studio.open) return; studio.open = true; studio.pending = pending; studio.previousFocus = document.activeElement;
+  $('#home').inert=true;
   studio.draft = AVATAR.clean(chosenAvatar); studio.selectedId = chosenAvatarId;
   studio.id = chosenAvatarId || crypto.randomUUID();
   $('#characterStudio').hidden = false; $('#avatarStatus').textContent = '共有に保存した選手は、みんなで使用できます。';
@@ -1856,6 +1864,7 @@ function openCharacterStudio(pending = null) {
 }
 function closeCharacterStudio() {
   studio.open = false; $('#characterStudio').hidden = true; studio.pending = null;
+  $('#home').inert=false;
   if (studio.previousFocus && studio.previousFocus.isConnected) studio.previousFocus.focus();
 }
 function rememberDraft() {
@@ -1898,7 +1907,7 @@ $('#avatarNew').addEventListener('click',()=>{if(studio.saving)return;studio.dra
 $('#avatarRandom').addEventListener('click',()=>{if(studio.saving)return;for(const [key,options] of Object.entries(AVATAR.catalogs))studio.draft[key]=Math.floor(Math.random()*options.length);for(const key of ['hairColor','eyeColor','uniform','hatColor','accent'])studio.draft[key]=AVATAR.colors[Math.floor(Math.random()*AVATAR.colors.length)];markAvatarEdited();refreshStudioFields();});
 $('#avatarRefresh').addEventListener('click',()=>{if(!studio.saving)refreshSharedCharacters();});
 $('#avatarSave').addEventListener('click',saveSharedCharacter);
-$('#avatarUse').addEventListener('click',()=>{if(studio.saving)return;rememberDraft();chosenAvatar=AVATAR.clean(studio.draft);chosenAvatarId=studio.id;cacheCharacters();$('#characterSummary').textContent=`選択中：${chosenAvatar.name} #${chosenAvatar.number}`;const action=studio.pending;closeCharacterStudio();if(action)action();});
+$('#avatarUse').addEventListener('click',()=>{if(studio.saving)return;rememberDraft();chosenAvatar=AVATAR.clean(studio.draft);chosenAvatarId=studio.id;cacheCharacters();$('#characterSummary').textContent=`選択中：${chosenAvatar.name} #${chosenAvatar.number}`;const action=studio.pending;closeCharacterStudio();if(action)action();else if(C.phase==='lobby')setTitlePlayer();});
 $('#characterBtn').addEventListener('click',()=>openCharacterStudio());$('#studioClose').addEventListener('click',closeCharacterStudio);
 $('#characterStudio').addEventListener('keydown',e=>{
   if(e.key==='Escape'){e.preventDefault();closeCharacterStudio();}
@@ -1906,6 +1915,8 @@ $('#characterStudio').addEventListener('keydown',e=>{
 });
 if(chosenAvatar)$('#characterSummary').textContent=`選択中：${chosenAvatar.name} #${chosenAvatar.number}`;
 
+/*TITLE_MENU*/
 toLobby();
+if(/^[A-Z0-9]{4}$/.test($('#codeIn').value))openMatchSetup('join',false);
 requestAnimationFrame(frame);
 })();

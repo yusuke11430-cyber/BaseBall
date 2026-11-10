@@ -1,5 +1,6 @@
 // main.jsのスコープ内へビルドで挿入。野球場と同じキャラをそのまま使う。
 const fightKeys = {left:false,right:false,guard:false};
+const fightProjection=new THREE.Vector3();
 function resetBrawlInput() {
   fightKeys.left=fightKeys.right=fightKeys.guard=false;
   if(C.brawl&&C.phase==='brawl')sendBrawlInput();
@@ -141,6 +142,19 @@ function updateBrawlCamera(dt) {
   const target=new THREE.Vector3(frame.x,frame.y,frame.z),look=new THREE.Vector3(0,1,mid);
   const k=1-Math.exp(-dt*4);camera.position.lerp(target,k);cam.look.lerp(look,k);
   cam.fov=lerp(cam.fov||34,34,k);camera.fov=cam.fov;camera.updateProjectionMatrix();camera.lookAt(cam.look);
+  alignBrawlBars();
+}
+function alignBrawlBars() {
+  const F=C.brawl;if(!F)return;
+  camera.updateMatrixWorld();
+  const homeX=fightProjection.copy(F.models.home.position).project(camera).x;
+  const awayX=fightProjection.copy(F.models.away.position).project(camera).x;
+  if(!Number.isFinite(homeX)||!Number.isFinite(awayX))return;
+  if(F.homeOnLeft!==undefined&&Math.abs(homeX-awayX)<.02)return;
+  const homeOnLeft=homeX<=awayX;if(F.homeOnLeft===homeOnLeft)return;F.homeOnLeft=homeOnLeft;
+  const home=$('#fightHomePlayer'),away=$('#fightAwayPlayer');
+  home.style.order=homeOnLeft?'0':'1';away.style.order=homeOnLeft?'1':'0';
+  home.classList.toggle('screen-right',!homeOnLeft);away.classList.toggle('screen-right',homeOnLeft);
 }
 function brawlKey(ev,down) {
   const k=ev.key.toLowerCase(),map={a:'left',arrowleft:'left',d:'right',arrowright:'right',l:'guard',' ':'guard'};
