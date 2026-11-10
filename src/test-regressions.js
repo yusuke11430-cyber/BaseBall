@@ -17,7 +17,7 @@ for (let seed = 1; seed <= 100; seed++) for (const lh of [false, true]) {
     const outcome = BB.judge(pi, { x: at.x, y: at.y + dy }, dt, initial, seed, { lh });
     assert.equal(outcome.kind, Math.abs(outcome.phi) > 45 ? 'foul' : 'inplay');
   }
-  for (const dx of [-0.39, 0, 0.39]) for (const dy of [-0.071, 0, 0.071]) {
+  for (const dx of [-0.34, 0, 0.34]) for (const dy of [-0.071, 0, 0.071]) {
     const outcome = BB.judgeBunt(pi, { x: at.x + dx, y: at.y + dy }, initial, seed, { lh });
     assert.equal(outcome.kind, Math.abs(outcome.phi) > 45 ? 'foul' : 'inplay');
   }

@@ -281,8 +281,8 @@ const batRunner = makePlayer(TEAM.away);
 
 // バット
 const batPivot = new THREE.Group(); scene.add(batPivot);
-const batMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.016, 0.88, 12), M('#d9a066'));
-batMesh.position.y = 0.48; batMesh.castShadow = true; batPivot.add(batMesh);
+const batMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.016, BB.BAT.length, 12), M('#d9a066'));
+batMesh.position.y = BB.BAT.length / 2 + 0.04; batMesh.castShadow = true; batPivot.add(batMesh);
 for (const y of [0, 0.09]) { const h = new THREE.Mesh(sphG, M('#ffffff')); h.scale.setScalar(0.07); h.position.y = y; batPivot.add(h); }
 const BAT_HOME = new THREE.Vector3(-0.62, 1.02, 0.08);
 batPivot.position.copy(BAT_HOME);
@@ -797,7 +797,7 @@ function startPitch(pi, windup) {
 }
 const plateTime = () => C.t0 + C.W + C.dur;
 const contactTime = () => C.t0 + C.W + C.dur * BB.contactS(ST.dz); // 立ち位置で、球をとらえる瞬間が変わる
-const myOpt = () => ({ lh: ST.lh, sz: ST.dz });
+const myOpt = () => ({ lh: ST.lh, sx: ST.x, sz: ST.dz });
 
 function trySwing() {
   if (role() !== 'bat' || !batPivot.visible || C.phase === 'play' || C.phase === 'call' || C.phase === 'brawl' || ST.b) return;
@@ -1275,10 +1275,9 @@ function placePad() {
   drawPad();
 }
 addEventListener('resize', placePad);
-function reachShift() { const h = handOf(ST); return h * (h * ST.x + 0.95) * 0.8; } // ベースに近づくほど外角に届く
 function setCursor(x, y) {
-  const sh = reachShift();
-  C.cur.x = BB.clamp(x, -0.48 + sh, 0.48 + sh); C.cur.y = BB.clamp(y, 0.34, 1.3);
+  const bounds = BB.batCursorBounds(ST.x, ST.lh);
+  C.cur.x = BB.clamp(x, bounds.min, bounds.max); C.cur.y = BB.clamp(y, 0.34, 1.3);
   cursor.position.set(C.cur.x, C.cur.y, ST.dz); buntBar.position.set(C.cur.x + handOf(ST) * 0.02, C.cur.y, ST.dz);
 }
 // バント中のバットの当たる範囲

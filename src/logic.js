@@ -4,6 +4,7 @@ const BB = (() => {
   const PLATE_Z = 0, RELEASE = { x: -0.45, y: 1.85, z: -17.4 };
   const ZONE = { x0: -0.25, x1: 0.25, y0: 0.5, y1: 1.1 };
   const MEET = { rx: 0.12, ry: 0.075 };
+  const BAT = { length: 0.78, sweet: 0.585, cursorHalf: 0.40 };
   const SWING_LAG = 0.07;      // クリックからインパクトまで（秒）
   const TIMING_WIN = 0.095;    // 当たる時間幅（±秒）
 
@@ -200,13 +201,25 @@ const BB = (() => {
     }
     return null;
   }
-  // バットの芯（グリップから66cm）がミートカーソルを通るインパクト姿勢。
+  // 立ち位置と一緒に動く、短めのスイング到達範囲。左右の打席で対称。
+  function batCursorBounds(sx,lh=false) {
+    const hand=lh?-1:1;
+    const stance=Number.isFinite(sx)?clamp(sx,lh?.55:-1.45,lh?1.45:-.55):-hand*.95;
+    const shift=stance+hand*.95;
+    return {min:shift-BAT.cursorHalf,max:shift+BAT.cursorHalf};
+  }
+  function boundedBatCursor(cursor,opt) {
+    const bounds=batCursorBounds(opt.sx,!!opt.lh);
+    return {x:clamp(cursor.x,bounds.min,bounds.max),y:cursor.y};
+  }
+  // バットの芯がミートカーソルを通るインパクト姿勢。描画の長さと共有。
   function swingPose(x, y, sz = 0, lh = false) {
     const h = lh ? -1 : 1, len = Math.hypot(1, 0.02), dx = h / len, dy = 0.02 / len;
-    return { x: x - dx * 0.66, y: y - dy * 0.66, z: sz };
+    return { x: x - dx * BAT.sweet, y: y - dy * BAT.sweet, z: sz };
   }
-  // opt: { lh: 左打席なら true, sz: 立ち位置の前後（-が投手寄り） }
+  // opt: { lh: 左打席なら true, sx: 左右位置, sz: 前後位置（-が投手寄り） }
   function judge(pi, cursor, dt, gs, seed, opt = {}) {
+    cursor=boundedBatCursor(cursor,opt);
     const r = rng(seed), hand = opt.lh ? -1 : 1;
     const plate = pitchPos(pi, 1), at = contactPoint(pi, opt.sz);
     const out = { n: pi.n, seed, swung: dt !== null, cx: +cursor.x.toFixed(3), cy: +cursor.y.toFixed(3), lh: !!opt.lh, sz: +(opt.sz || 0).toFixed(2) };
@@ -234,8 +247,9 @@ const BB = (() => {
   }
 
   // バント：バットの高さと幅（カーソル基準）に球が来れば当たる。タイミング不要
-  const BUNT = { back: 0.40, tip: 0.44, h: 0.075 };
+  const BUNT = { back: 0.35, tip: 0.39, h: 0.075 };
   function judgeBunt(pi, cursor, gs, seed, opt = {}) {
+    cursor=boundedBatCursor(cursor,opt);
     const r = rng(seed), hand = opt.lh ? -1 : 1;
     const at = contactPoint(pi, opt.sz);
     const out = { n: pi.n, seed, swung: true, bunt: true, cx: +cursor.x.toFixed(3), cy: +cursor.y.toFixed(3), lh: !!opt.lh, sz: +(opt.sz || 0).toFixed(2) };
@@ -374,7 +388,7 @@ const BB = (() => {
     return gs;
   }
 
-  return { PITCHES, PITCH_KEYS, ZONE, MEET, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
+  return { PITCHES, PITCH_KEYS, ZONE, MEET, BAT, batCursorBounds, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
     makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, stadiumOutline, stadiumSection, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;
