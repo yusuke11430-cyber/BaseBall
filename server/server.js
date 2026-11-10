@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { WebSocketServer } = require('ws');
 const { createCharacterStore, characterHandler } = require('./character-store');
+const access = require('./access').createAccess();
 
 const PORT = process.env.PORT || 8080;
 // 接続を許すページの場所（カンマ区切り）。空ならどこからでも可
@@ -23,13 +24,14 @@ let seq = 1;
 const handleCharacters = characterHandler(createCharacterStore(), ALLOWED);
 const server = http.createServer((req, res) => {
   const route = req.url.split('?')[0];
-  if (route === '/api/characters') { handleCharacters(req, res); return; }
+  if (route === '/auth') { access.login(req, res); return; }
+  if (route === '/api/characters') { if (!access.authorized(req)) { access.locked(res); return; } handleCharacters(req, res); return; }
   if (route === '/play' || route === '/play/') {
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { Allow: 'GET, HEAD' }); res.end(); return; }
     // 完成HTMLはビルド時に生成。任意のパスをファイルとして公開しない。
-    fs.readFile(path.join(__dirname, 'play.html'), (error, html) => {
+    fs.readFile(path.join(__dirname, access.authorized(req) ? 'play.html' : 'login.html'), (error, html) => {
       if (error) { res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('ゲームを準備できませんでした'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' });
       res.end(req.method === 'HEAD' ? undefined : html);
     });
     return;
@@ -41,7 +43,7 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({
   server, maxPayload: 16 * 1024,
-  verifyClient: ({ origin }) => !ALLOWED.length || ALLOWED.includes(origin),
+  verifyClient: ({ origin, req }) => access.authorized(req) && (!ALLOWED.length || ALLOWED.includes(origin)),
 });
 
 const send = (ws, o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
