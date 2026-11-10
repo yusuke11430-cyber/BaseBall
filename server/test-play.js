@@ -16,7 +16,7 @@ const passwordHash=salt+':'+scryptSync(password,salt,64).toString('hex');
     });
     const url = `http://127.0.0.1:${port}`;
     let r = await fetch(url+'/'); assert.equal(r.status,200); assert.equal(await r.text(),'ok');
-    r=await fetch(url+'/play');let locked=await r.text();assert.match(locked,/入場パスワード/);assert.ok(!locked.includes('function makeWsLobby'));
+    r=await fetch(url+'/play');assert.equal(r.headers.get('referrer-policy'),'same-origin');let locked=await r.text();assert.match(locked,/入場パスワード/);assert.ok(!locked.includes('function makeWsLobby'));
     for(const method of ['GET','POST']) {r=await fetch(url+'/api/characters',{method});assert.equal(r.status,401);}
     r=await fetch(url+'/auth',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'password=wrong',redirect:'manual'});assert.equal(r.status,403);assert.equal(r.headers.get('set-cookie'),null);
     r=await fetch(url+'/auth',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password,room:'ABCD'}),redirect:'manual'});

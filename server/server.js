@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
     // 完成HTMLはビルド時に生成。任意のパスをファイルとして公開しない。
     fs.readFile(path.join(__dirname, access.authorized(req) ? 'play.html' : 'login.html'), (error, html) => {
       if (error) { res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('ゲームを準備できませんでした'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Robots-Tag': 'noindex, nofollow' });
       res.end(req.method === 'HEAD' ? undefined : html);
     });
     return;
