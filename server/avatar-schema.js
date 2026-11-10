@@ -124,6 +124,21 @@ const AVATAR = (() => {
     if(a.paint===11) ellipse(0,.18,.11,.09,'#ce4f4c');
     g.restore();
   }
+  // 縫い目と襟は同じユニフォーム画像へ焼き込み、立体パーツを増やさない。
+  function paintCloth(g,w,h) {
+    g.save();
+    const shade=g.createLinearGradient(0,0,0,h);shade.addColorStop(0,'rgba(255,255,255,.08)');shade.addColorStop(.5,'rgba(0,0,0,0)');shade.addColorStop(1,'rgba(0,0,0,.16)');
+    g.fillStyle=shade;g.fillRect(0,0,w,h);
+    g.strokeStyle='rgba(0,0,0,.22)';g.lineWidth=w*.004;g.lineJoin='round';
+    g.beginPath();g.moveTo(w*.205,h*.15);g.lineTo(w*.25,h*.24);g.lineTo(w*.295,h*.15);g.stroke();
+    g.strokeStyle='rgba(255,255,255,.28)';g.lineWidth=w*.003;
+    g.beginPath();g.moveTo(w*.20,h*.145);g.lineTo(w*.25,h*.245);g.lineTo(w*.30,h*.145);g.stroke();
+    g.strokeStyle='rgba(0,0,0,.13)';g.lineWidth=w*.002;
+    for(const x of [.25,.5]){g.beginPath();g.moveTo(w*x,h*.25);g.lineTo(w*x,h*.81);g.stroke();}
+    g.beginPath();g.moveTo(0,h*.82);g.lineTo(w,h*.82);g.stroke();
+    g.fillStyle='rgba(255,255,255,.65)';for(const y of [.30,.37,.68]){g.beginPath();g.arc(w*.25,h*y,w*.0035,0,Math.PI*2);g.fill();}
+    g.restore();
+  }
   function paintJersey(g,w,h,value) {
     const a=clean(value); g.fillStyle=a.uniform; g.fillRect(0,0,w,h); g.fillStyle=a.accent;
     if(a.pattern===1||a.pattern===2) for(let x=0;x<w;x+=w/16) g.fillRect(x,0,w/(a.pattern===1?160:55),h);
@@ -132,11 +147,12 @@ const AVATAR = (() => {
     if(a.pattern===5) g.fillRect(0,0,w,h*.32);
     if(a.pattern===6) { g.globalAlpha=.25; for(let x=0;x<16;x++) for(let y=0;y<8;y++) if((x+y)%2) g.fillRect(x*w/16,y*h/8,w/16,h/8); g.globalAlpha=1; }
     if(a.pattern===7) for(const x of [.25,.75]) g.fillRect(w*x-w*.015,0,w*.03,h);
+    paintCloth(g,w,h);g.fillStyle=a.accent;
     g.textAlign='center'; g.textBaseline='middle'; g.strokeStyle=a.uniform; g.lineWidth=w*.009;
     g.font=`900 ${h*.11}px sans-serif`; g.strokeText(a.name,w*.75,h*.32,w*.4); g.fillText(a.name,w*.75,h*.32,w*.4);
     g.font=`900 ${h*.36}px sans-serif`; g.strokeText(a.number,w*.75,h*.59); g.fillText(a.number,w*.75,h*.59);
     g.font=`900 ${h*.24}px sans-serif`; g.strokeText(a.number,w*.25,h*.53); g.fillText(a.number,w*.25,h*.53);
   }
-  return { catalogs, defaults, colors, clean, paintHead, paintJersey };
+  return { catalogs, defaults, colors, clean, paintHead, paintCloth, paintJersey };
 })();
 if (typeof module !== 'undefined') module.exports = AVATAR;

@@ -31,14 +31,15 @@ scene.background = canvasTex(4, 256, (g, w, h) => {
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
 scene.fog = new THREE.Fog(0xd3e0dc, 220, 520);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x5c8a45, 0.72));
-const sun = new THREE.DirectionalLight(0xfff1d8, 0.85);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x66765b, 0.64));
+const sun = new THREE.DirectionalLight(0xfff1dd, 0.94);
 sun.position.set(-50, 110, 70); sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.04;
-Object.assign(sun.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 10, far: 400 });
+Object.assign(sun.shadow.camera, { left: -95, right: 95, top: 95, bottom: -95, near: 10, far: 400 });
 sun.target.position.set(0, 0, -25); scene.add(sun, sun.target);
 
 const M = c => new THREE.MeshLambertMaterial({ color: c });
+/*STADIUM_MEDIA*/
 
 // ---- グラウンド（キャンバスに描いた芝と土） ----
 (function buildField() {
@@ -47,9 +48,9 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   const tex = canvasTex(Math.round(W * S), Math.round(D * S), (g, w, h) => {
     g.fillStyle = '#477e49'; g.fillRect(0, 0, w, h);
     const [hx, hz] = P(0, 0);
-    for (const rot of [Math.PI / 4, -Math.PI / 4]) {
+    for (const rot of [Math.PI / 4]) {
       g.save(); g.translate(hx, hz); g.rotate(rot);
-      for (let i = -40; i < 40; i++) if (i % 2 === 0) { g.fillStyle = 'rgba(255,255,255,0.055)'; g.fillRect(i * 7 * S, -260 * S, 7 * S, 520 * S); }
+      for (let i = -40; i < 40; i++) if (i % 2 === 0) { g.fillStyle = 'rgba(255,255,255,0.045)'; g.fillRect(i * 7 * S, -260 * S, 7 * S, 520 * S); }
       g.restore();
     }
     // 外野フェンス際の土
@@ -67,6 +68,17 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
     g.restore();
     circ(0, -18.44, 2.8, dirt); circ(0, 0, 4.2, dirt);
     [[19.4, -19.4], [0, -38.8], [-19.4, -19.4]].forEach(([x, z]) => circ(x, z, 2.6, dirt));
+    // 起動時の一度だけ。芝・土の細かな粒と擦れを既存の地面画像に焼く。
+    const grain=BB.rng(41821);
+    for(let i=0;i<11000;i++){
+      g.fillStyle=i%2?'rgba(255,249,219,.055)':'rgba(30,48,30,.055)';
+      g.fillRect(grain()*w,grain()*h,1+grain()*1.5,1+grain()*1.5);
+    }
+    for(const [x,z] of [[0,0],[19.4,-19.4],[0,-38.8],[-19.4,-19.4]]){
+      const [px,py]=P(x,z),r=S*(x===0&&z===0?3.9:2.45),wear=g.createRadialGradient(px,py,r*.12,px,py,r);
+      wear.addColorStop(0,'rgba(119,74,44,.17)');wear.addColorStop(.7,'rgba(119,74,44,.06)');wear.addColorStop(1,'rgba(119,74,44,0)');
+      g.fillStyle=wear;g.fillRect(px-r,py-r,r*2,r*2);
+    }
     // ファウルライン
     g.strokeStyle = '#fbfbf5'; g.lineWidth = 0.14 * S; g.lineCap = 'round';
     for (const s of [1, -1]) { const d = BB.fenceDist(45 * s); const [a, b] = P(0, 0); const [c, e] = P(s * d * Math.SQRT1_2, -d * Math.SQRT1_2); g.beginPath(); g.moveTo(a, b); g.lineTo(c, e); g.stroke(); }
@@ -101,7 +113,13 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
     const a = outline[i], b = outline[(i + 1) % outline.length], count = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5);
     for (let j = 0; j < count; j++) wall.push([lerp(a[0], b[0], j / count), lerp(a[1], b[1], j / count)]);
   }
-  const wallMat = M('#28594f'), padTop = M('#ffcf3f');
+  const paddingTex=canvasTex(512,128,(g,w,h)=>{
+    const paint=g.createLinearGradient(0,0,0,h);paint.addColorStop(0,'#3f7465');paint.addColorStop(.18,'#2c5e51');paint.addColorStop(1,'#21483e');g.fillStyle=paint;g.fillRect(0,0,w,h);
+    for(let x=0;x<w;x+=64){g.fillStyle='rgba(0,0,0,.25)';g.fillRect(x,0,2,h);g.fillStyle='rgba(255,255,255,.07)';g.fillRect(x+2,0,1,h);}
+    g.strokeStyle='#b8cbb5';g.globalAlpha=.7;g.lineWidth=1;g.strokeRect(38,38,w-76,h-76);
+    g.fillStyle='#d9e3c9';g.font='600 27px Bahnschrift,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('SUPER HAGE BASEBALL',w/2,h/2);g.globalAlpha=1;
+  });paddingTex.wrapS=THREE.RepeatWrapping;
+  const wallMat = new THREE.MeshLambertMaterial({map:paddingTex}), padTop = M('#c5af72');
   const crowd = canvasTex(1024, 512, (g, w, h) => {
     const r = BB.rng(71026), shirts = ['#fff6df', '#e66d4b', '#ffce65', '#6bafd8', '#e9edf2', '#7ab999'];
     g.fillStyle = '#295975'; g.fillRect(0, 0, w, h);
@@ -136,7 +154,8 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
       const aisle = aisles && Math.floor(u / 32) !== Math.floor((u + len) / 32);
       const bucket = buckets[aisle ? 2 : material], b = bucket.pos.length / 3;
       bucket.pos.push(...ringPoint(i, d1, y1), ...ringPoint(j, d1, y1), ...ringPoint(j, d2, y2), ...ringPoint(i, d2, y2));
-      bucket.uv.push(u / 36, row / 32, (u + len) / 36, row / 32, (u + len) / 36, (row + 1) / 32, u / 36, (row + 1) / 32);
+      if(material===4)bucket.uv.push(-u/24,y1/H,-(u+len)/24,y1/H,-(u+len)/24,y2/H,-u/24,y2/H);
+      else bucket.uv.push(u / 36, row / 32, (u + len) / 36, row / 32, (u + len) / 36, (row + 1) / 32, u / 36, (row + 1) / 32);
       bucket.idx.push(b, b + 1, b + 2, b, b + 2, b + 3); u += len;
     }
   }
@@ -159,8 +178,8 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   // 最上段の立ち上がりと笠木。
   band(depth, height, depth, height + 1.1, 3);
   band(depth - 0.15, height + 1.1, depth + 0.15, height + 1.1, 2);
-  const standMaterials = [M('#376f8a'),
-    new THREE.MeshLambertMaterial({ map: crowd, side: THREE.DoubleSide, emissive: 0x152633, emissiveIntensity: 0.25 }),
+  const standMaterials = [new THREE.MeshLambertMaterial({map:crowd}),
+    new THREE.MeshLambertMaterial({ map: crowd, side: THREE.DoubleSide, emissive: 0x152633, emissiveIntensity: 0.08 }),
     M('#d9d9c9'), M('#bac8c7'), wallMat, padTop];
   buckets.forEach((b, i) => {
     const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
@@ -176,16 +195,25 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
     new THREE.MeshBasicMaterial({ color: 0x1b2a4a, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
   net.position.set(0, 3.5 + 3.2, 0); scene.add(net);
   // 照明塔とスコアボード
+  const lampTex=canvasTex(128,64,(g,w,h)=>{
+    g.fillStyle='#34494b';g.fillRect(0,0,w,h);
+    for(let y=8;y<h;y+=16)for(let x=8;x<w;x+=16){g.fillStyle='#1b3036';g.fillRect(x-6,y-6,13,13);g.fillStyle='#ede8cf';g.beginPath();g.arc(x,y,4.5,0,Math.PI*2);g.fill();g.fillStyle='#fffbed';g.fillRect(x-2,y-2,4,4);}
+  });const lampMat=new THREE.MeshBasicMaterial({map:lampTex});
   for (const [x, z] of [[-75, -120], [75, -120], [-90, 10], [90, 10]]) {
     const t = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 44, 8), M('#d9dde6')); t.position.set(x, 22, z); scene.add(t);
-    const l = new THREE.Mesh(new THREE.BoxGeometry(9, 5, 1), M('#f3f6ff')); l.position.set(x, 45, z); l.lookAt(0, 20, -40); scene.add(l);
+    const l = new THREE.Mesh(new THREE.BoxGeometry(9, 5, 1), lampMat); l.position.set(x, 45, z); l.lookAt(0, 20, -40); scene.add(l);
   }
-  const sb = new THREE.Mesh(new THREE.BoxGeometry(30, 12, 1.5), M('#1b2a4a')); sb.position.set(0, 34, -158); scene.add(sb);
-  const sbf = new THREE.Mesh(new THREE.PlaneGeometry(28, 10), new THREE.MeshBasicMaterial({ map: canvasTex(560, 200, (g, w, h) => {
-    g.fillStyle = '#10203d'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffb627'; g.font = '700 37px "Bahnschrift", sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Super Hage BaseBall', w / 2, h / 2 + 6);
+  const sb = new THREE.Mesh(new THREE.BoxGeometry(32, 20, 1.5), M('#1b2a4a')); sb.position.set(0, 34, -158); scene.add(sb);
+  const sbf = new THREE.Mesh(new THREE.PlaneGeometry(30, 16.875), new THREE.MeshBasicMaterial({ map: canvasTex(512, 288, (g, w, h) => {
+    g.fillStyle='#142e32';g.fillRect(0,0,w,h);g.strokeStyle='#254044';g.lineWidth=1;
+    for(let x=0;x<w;x+=8){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();}
+    for(let y=0;y<h;y+=8){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
+    g.textAlign='center';g.textBaseline='middle';g.fillStyle='#b7c7b5';g.font='600 18px Bahnschrift,sans-serif';g.fillText('SUPER HAGE',w/2,35);
+    g.fillStyle='#f0d69e';g.font='700 60px Bahnschrift,sans-serif';g.fillText('BASEBALL',w/2,100);
+    g.fillStyle='#8da69c';g.fillRect(55,145,w-110,1);g.font='500 16px Bahnschrift,sans-serif';g.fillText('PLAY BALL',w/2,173);
   }) }));
   sbf.position.set(0, 34, -157.2); scene.add(sbf);
+  STADIUM_MEDIA.init(sbf,paddingTex);
   // 雲
   const cloudTex = canvasTex(128, 64, (g, w, h) => { for (const [x, y, r] of [[40, 38, 22], [64, 30, 26], [90, 38, 20]]) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); } });
   for (let i = 0; i < 9; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, fog: false, depthWrite: false })); s.scale.set(90, 45, 1); s.position.set((Math.random() - 0.5) * 600, 110 + Math.random() * 60, -260 - Math.random() * 160); scene.add(s); }
@@ -193,18 +221,23 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
 
 // ---- 選手（丸っこいオリジナルキャラ） ----
 const sphG = new THREE.SphereGeometry(1, 20, 14);
+// 全選手で同じ形を共有。頂点数・形・当たり判定は変えず、重複バッファだけ削減。
+const playerLegG=new THREE.CylinderGeometry(.085,.1,.42,10);
+const playerCapG=new THREE.SphereGeometry(.262,20,10,0,Math.PI*2,0,Math.PI/2);
+const playerBrimG=new THREE.CylinderGeometry(.17,.17,.03,16,1,false,-Math.PI/2,Math.PI);
+const clothTex=canvasTex(256,128,(g,w,h)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h);AVATAR.paintCloth(g,w,h);});
 function makePlayer(team, opts = {}) {
   const g = new THREE.Group();
   const jersey = M(team.jersey), cap = M(team.cap), pants = M('#f5f2ea'), skin = M('#f3c9a1'), dark = M('#24262e'), glove = M('#ffffff');
   const add = (geo, mat, x, y, z, sx = 1, sy = sx, sz = sx) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; g.add(m); return m; };
   const body = add(sphG, jersey, 0, 0.78, 0, 0.3, 0.34, 0.27);
-  const legG = new THREE.CylinderGeometry(0.085, 0.1, 0.42, 10);
+  const legG = playerLegG;
   const legL = add(legG, pants, -0.11, 0.3, 0), legR = add(legG, pants, 0.11, 0.3, 0);
   add(sphG, dark, -0.11, 0.07, 0.04, 0.1, 0.06, 0.15); add(sphG, dark, 0.11, 0.07, 0.04, 0.1, 0.06, 0.15);
   const head = new THREE.Group(); head.position.set(0, 1.33, 0); g.add(head);
   const hm = new THREE.Mesh(sphG, skin); hm.scale.setScalar(0.25); hm.castShadow = true; head.add(hm);
-  const capM = new THREE.Mesh(new THREE.SphereGeometry(0.262, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), cap); capM.position.y = 0.03; head.add(capM);
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 16, 1, false, -Math.PI / 2, Math.PI), cap); brim.position.set(0, 0.04, 0.12); head.add(brim);
+  const capM = new THREE.Mesh(playerCapG, cap); capM.position.y = 0.03; head.add(capM);
+  const brim = new THREE.Mesh(playerBrimG, cap); brim.position.set(0, 0.04, 0.12); head.add(brim);
   const eyes = [];
   for (const x of [-0.085, 0.085]) { const e = new THREE.Mesh(sphG, dark); e.scale.set(0.032, 0.045, 0.02); e.position.set(x, -0.01, 0.235); head.add(e); eyes.push(e); }
   const handL = add(sphG, opts.mitt ? M('#9c5a2c') : glove, -0.37, 0.8, 0.06, opts.mitt ? 0.12 : 0.085);
@@ -216,9 +249,9 @@ function setTeam(p, t) { p.userData.jersey.color.set(t.jersey); p.userData.cap.c
 function applyAvatar(p, value, team) {
   const u = p.userData, a = value ? AVATAR.clean(value) : null, key = a ? JSON.stringify(a) : 'default';
   if (u.avatarKey !== key) {
-    if (u.skin.map) u.skin.map.dispose(); if (u.jersey.map) u.jersey.map.dispose();
+    if (u.skin.map) u.skin.map.dispose(); if (u.jersey.map&&u.jersey.map!==clothTex) u.jersey.map.dispose();
     u.skin.map = a ? canvasTex(512, 256, (g,w,h) => AVATAR.paintHead(g,w,h,a)) : null;
-    u.jersey.map = a ? canvasTex(512, 256, (g,w,h) => AVATAR.paintJersey(g,w,h,a)) : null;
+    u.jersey.map = a ? canvasTex(512, 256, (g,w,h) => AVATAR.paintJersey(g,w,h,a)) : clothTex;
     u.skin.needsUpdate = u.jersey.needsUpdate = true;
     u.eyes.forEach(e => e.visible = !a); u.avatarKey = key;
     u.skinBase = new THREE.Color(a ? '#ffffff' : '#f3c9a1');
@@ -961,6 +994,7 @@ function step() {
   if (C.phase === 'play') updatePlay(t);
   updateSwing(t);
   updateCamera(t, dt);
+  STADIUM_MEDIA.update(t);
   updateContactFx(t);
   if (!C.brawl) updateStaminaLook(t, dt);
   updatePip(dt);

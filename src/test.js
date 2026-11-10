@@ -6,6 +6,7 @@ require('./test-movement.js');
 require('./test-connection.js');
 require('./test-contact.js');
 require('./test-brawl.js');
+require('./test-render-resources.js').catch(err=>{console.error(err);process.exitCode=1;});
 // 予測の再現性・接触時の一致と、全球種/変化量/球速/打席前後の有限性。
 let predictionCases=0;
 for(const type of BB.PITCH_KEYS) for(let bl=1;bl<=7;bl++) for(const speed of [20,146,1000]) for(const sz of [-0.9,0,0.6]) {
