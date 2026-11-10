@@ -63,6 +63,27 @@
         "accent": "#fff6df"
       },
       "createdAt": "2026-11-08T12:23:41.985Z"
+    },
+    {
+      "id": "3b1ce997-0335-486b-84fe-f839d1ee40b4",
+      "appearance": {
+        "name": "asps",
+        "number": "7",
+        "hair": 13,
+        "eyes": 0,
+        "brows": 1,
+        "mouth": 0,
+        "paint": 10,
+        "pattern": 2,
+        "hat": 3,
+        "skin": "#f3c9a1",
+        "hairColor": "#30251e",
+        "eyeColor": "#24262e",
+        "uniform": "#e4572e",
+        "hatColor": "#b8361a",
+        "accent": "#fff6df"
+      },
+      "createdAt": "2026-11-10T12:40:09.574Z"
     }
   ]
 }
