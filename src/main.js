@@ -27,10 +27,10 @@ function canvasTex(w, h, draw) {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
 }
 scene.background = canvasTex(4, 256, (g, w, h) => {
-  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#3d9ee8'); gr.addColorStop(0.55, '#8fd0f5'); gr.addColorStop(1, '#dff3ff');
+  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#659aa9'); gr.addColorStop(0.55, '#afcfd0'); gr.addColorStop(1, '#e1e9df');
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
-scene.fog = new THREE.Fog(0xcfeaff, 220, 520);
+scene.fog = new THREE.Fog(0xd3e0dc, 220, 520);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x5c8a45, 0.72));
 const sun = new THREE.DirectionalLight(0xfff1d8, 0.85);
 sun.position.set(-50, 110, 70); sun.castShadow = true;
@@ -45,7 +45,7 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   const S = 7.3, W = 280, D = 200;
   const P = (x, z) => [(x + 140) * S, (z + 170) * S];
   const tex = canvasTex(Math.round(W * S), Math.round(D * S), (g, w, h) => {
-    g.fillStyle = '#3f8f3a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#477e49'; g.fillRect(0, 0, w, h);
     const [hx, hz] = P(0, 0);
     for (const rot of [Math.PI / 4, -Math.PI / 4]) {
       g.save(); g.translate(hx, hz); g.rotate(rot);
@@ -56,12 +56,12 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
     g.beginPath();
     for (let a = -50; a <= 50; a += 1) { const d = BB.fenceDist(a) + 2, r = a * Math.PI / 180; const [x, y] = P(Math.sin(r) * d, -Math.cos(r) * d); a === -50 ? g.moveTo(x, y) : g.lineTo(x, y); }
     for (let a = 50; a >= -50; a -= 1) { const d = BB.fenceDist(a) - 4.5, r = a * Math.PI / 180; const [x, y] = P(Math.sin(r) * d, -Math.cos(r) * d); g.lineTo(x, y); }
-    g.closePath(); g.fillStyle = '#c4875a'; g.fill();
-    const dirt = '#d79b66';
+    g.closePath(); g.fillStyle = '#b98661'; g.fill();
+    const dirt = '#c99770';
     const circ = (x, z, r, c) => { const [a, b] = P(x, z); g.beginPath(); g.arc(a, b, r * S, 0, Math.PI * 2); g.fillStyle = c; g.fill(); };
     circ(0, -18.4, 29, dirt);
     g.beginPath(); [[0, -3.4], [16.2, -19.4], [0, -35.6], [-16.2, -19.4]].forEach(([x, z], i) => { const [a, b] = P(x, z); i ? g.lineTo(a, b) : g.moveTo(a, b); });
-    g.closePath(); g.fillStyle = '#43963d'; g.fill();
+    g.closePath(); g.fillStyle = '#4e874e'; g.fill();
     g.save(); g.clip();
     for (const rot of [Math.PI / 4]) { g.translate(hx, hz); g.rotate(rot); for (let i = -10; i < 10; i++) if (i % 2 === 0) { g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(i * 3.6 * S, -60 * S, 3.6 * S, 120 * S); } }
     g.restore();
@@ -78,11 +78,11 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshLambertMaterial({ map: tex }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0, -70); ground.receiveShadow = true; scene.add(ground);
   // 外周の芝（遠景）
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), M('#4a8c3f'));
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), M('#527c4d'));
   outer.rotation.x = -Math.PI / 2; outer.position.set(0, -0.05, -70); scene.add(outer);
 
   // マウンド・ベース・ホームベース
-  const mound = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.0, 0.25, 40), M('#d79b66'));
+  const mound = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.0, 0.25, 40), M('#c99770'));
   mound.position.set(0, 0.12, -18.44); mound.receiveShadow = true; scene.add(mound);
   const rubber = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.15), M('#ffffff')); rubber.position.set(0, 0.27, -18.44); scene.add(rubber);
   [[19.4, -19.4], [0, -38.8], [-19.4, -19.4]].forEach(([x, z]) => {
@@ -101,7 +101,7 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
     const a = outline[i], b = outline[(i + 1) % outline.length], count = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5);
     for (let j = 0; j < count; j++) wall.push([lerp(a[0], b[0], j / count), lerp(a[1], b[1], j / count)]);
   }
-  const wallMat = M('#245f52'), padTop = M('#ffcf3f');
+  const wallMat = M('#28594f'), padTop = M('#ffcf3f');
   const crowd = canvasTex(1024, 512, (g, w, h) => {
     const r = BB.rng(71026), shirts = ['#fff6df', '#e66d4b', '#ffce65', '#6bafd8', '#e9edf2', '#7ab999'];
     g.fillStyle = '#295975'; g.fillRect(0, 0, w, h);
@@ -182,7 +182,7 @@ const M = c => new THREE.MeshLambertMaterial({ color: c });
   }
   const sb = new THREE.Mesh(new THREE.BoxGeometry(30, 12, 1.5), M('#1b2a4a')); sb.position.set(0, 34, -158); scene.add(sb);
   const sbf = new THREE.Mesh(new THREE.PlaneGeometry(28, 10), new THREE.MeshBasicMaterial({ map: canvasTex(560, 200, (g, w, h) => {
-    g.fillStyle = '#10203d'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffb627'; g.font = '700 37px "Dela Gothic One", sans-serif';
+    g.fillStyle = '#10203d'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffb627'; g.font = '700 37px "Bahnschrift", sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Super Hage BaseBall', w / 2, h / 2 + 6);
   }) }));
   sbf.position.set(0, 34, -157.2); scene.add(sbf);
@@ -1219,7 +1219,7 @@ function drawPad() {
   // 狙い
   g.strokeStyle = '#ff5a3c'; g.lineWidth = 3 * dpr; g.beginPath(); g.arc(ax, ay, 9 * dpr, 0, 7); g.stroke();
   g.beginPath(); g.moveTo(ax - 15 * dpr, ay); g.lineTo(ax + 15 * dpr, ay); g.moveTo(ax, ay - 15 * dpr); g.lineTo(ax, ay + 15 * dpr); g.stroke();
-  if (P && P.knuckle) { g.fillStyle = '#ffb627'; g.font = `${14 * dpr}px "Dela Gothic One",sans-serif`; g.fillText('?', ax + 12 * dpr, ay - 10 * dpr); }
+  if (P && P.knuckle) { g.fillStyle = '#ffb627'; g.font = `${14 * dpr}px "Bahnschrift",sans-serif`; g.fillText('?', ax + 12 * dpr, ay - 10 * dpr); }
 }
 let padTouch = null;
 padC.addEventListener('pointerdown', ev => {
@@ -1818,7 +1818,7 @@ function openCharacterStudio(pending = null) {
   if (studio.open) return; studio.open = true; studio.pending = pending; studio.previousFocus = document.activeElement;
   studio.draft = AVATAR.clean(chosenAvatar); studio.selectedId = chosenAvatarId;
   studio.id = chosenAvatarId || crypto.randomUUID();
-  $('#characterStudio').hidden = false; $('#avatarStatus').textContent = '保存したキャラは全員共通。髪・顔はテクスチャで軽く描きます';
+  $('#characterStudio').hidden = false; $('#avatarStatus').textContent = '共有に保存した選手は、みんなで使用できます。';
   initStudioPreview(); refreshStudioFields(); renderCharacterList(); refreshSharedCharacters(); $('#avatarName').focus();
 }
 function closeCharacterStudio() {

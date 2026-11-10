@@ -69,3 +69,5 @@ mainブランチとは分かれているため、キャラ保存でゲーム本�
 
 開発時は `python src/build.py` → `node src/test.js` → `node server/test-characters.js` で検証します。
 `src/avatar.js` が見た目設定と描画の元ファイルです。ビルド時に `server/avatar-schema.js` へ同じスキーマを生成します。
+
+UIのスタイルは `src/ui.css` にまとめています。ビルド時にHTMLへ埋め込みます。フォントは端末標準のものを使用し、UIの背景ぼかしや追加の3D描画は使いません。
