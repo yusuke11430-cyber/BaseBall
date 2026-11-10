@@ -84,6 +84,27 @@
         "accent": "#fff6df"
       },
       "createdAt": "2026-11-10T12:40:09.574Z"
+    },
+    {
+      "id": "5d53f0b3-a19d-48be-86bb-12ae2dc61aa5",
+      "appearance": {
+        "name": "ネオス",
+        "number": "7",
+        "hair": 13,
+        "eyes": 0,
+        "brows": 1,
+        "mouth": 0,
+        "paint": 10,
+        "pattern": 2,
+        "hat": 1,
+        "skin": "#2355a4",
+        "hairColor": "#30251e",
+        "eyeColor": "#24262e",
+        "uniform": "#e4572e",
+        "hatColor": "#b8361a",
+        "accent": "#fff6df"
+      },
+      "createdAt": "2026-11-10T12:41:06.992Z"
     }
   ]
 }
