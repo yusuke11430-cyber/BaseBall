@@ -105,6 +105,27 @@
         "accent": "#fff6df"
       },
       "createdAt": "2026-11-10T12:41:06.992Z"
+    },
+    {
+      "id": "5c01a775-4106-4d08-9c8f-8a3fb9a1b537",
+      "appearance": {
+        "name": "TEN",
+        "number": "99",
+        "hair": 29,
+        "eyes": 18,
+        "brows": 16,
+        "mouth": 22,
+        "paint": 1,
+        "pattern": 3,
+        "hat": 0,
+        "skin": "#f3c9a1",
+        "hairColor": "#30251e",
+        "eyeColor": "#24262e",
+        "uniform": "#ff3c00",
+        "hatColor": "#b8361a",
+        "accent": "#fff6df"
+      },
+      "createdAt": "2026-11-11T13:09:05.243Z"
     }
   ]
 }
