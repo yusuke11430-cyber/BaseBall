@@ -375,27 +375,14 @@ const BB = (() => {
   }
   function inZone(x, y) { return x >= ZONE.x0 - 0.035 && x <= ZONE.x1 + 0.035 && y >= ZONE.y0 - 0.035 && y <= ZONE.y1 + 0.035; }
 
-  // 現時点までの変化から到達位置を予測。残りの変化は徐々に見えてきて、接触時は判定と一致する。
-  function predictContact(pi, s, sz = 0) {
-    const contact = contactS(sz), at = pitchPos(pi, contact);
-    if (noBreak(pi.type) || s >= contact) return at;
-    const targetX = at.x, targetY = at.y;
-    const p = PITCHES[pi.type], m = pi.bm || 1, t = clamp(s, 0, contact), end = Math.min(contact, 1), seen = Math.min(t, 1);
-    // 観測済みの曲がりと現在の変化速度で、残り区間を外挿する（重力は織り込み済み）。
-    const remaining = Math.pow(end, p.k) - Math.pow(seen, p.k) - p.k * Math.pow(seen, p.k - 1) * (end - seen);
-    at.x -= p.bx * m * remaining; at.y -= p.by * m * remaining;
-    if (pi.kp) {
-      const wave = (u, frequency, phase) => Math.sin(u * frequency + phase) * Math.sin(u * Math.PI);
-      const slope = (u, frequency, phase) => frequency * Math.cos(u * frequency + phase) * Math.sin(u * Math.PI) + Math.PI * Math.sin(u * frequency + phase) * Math.cos(u * Math.PI);
-      // ナックルの不規則な揺れも反映。残り時間が短くなるほど予測のずれが消える。
-      const forecast = (frequency, phase) => 0.06 * m * (wave(seen, frequency, phase) + slope(seen, frequency, phase) * (end - seen) - wave(end, frequency, phase));
-      at.x += forecast(13, pi.kp[0]); at.y += forecast(10, pi.kp[1]);
-    }
-    // 予測円だけを穏やかにする。小さい変化は1/4、大きな変化も約2球分以内に収める。
-    // 滑らかに制限し、変化量1〜7の差と接触時の一致を保つ。
-    const dx = at.x - targetX, dy = at.y - targetY, gain = 0.25 / (1 + 0.25 * Math.hypot(dx, dy) / 0.28);
-    at.x = targetX + dx * gain; at.y = targetY + dy * gain;
-    return at;
+  // 予測円の中心は、打者の打撃面で実際に通過する点そのもの。
+  // 残りの変化を推測して中心を動かすと、見た目と判定がずれるため使わない。
+  function predictContact(pi, s, sz = 0) { return pitchPos(pi, contactS(sz)); }
+  // 高速球や処理落ちで打撃面を1フレームで飛び越しても、通過点を一度描く。
+  // 描画専用。投球時刻・打撃タイミング・判定は実際のsで処理する。
+  function pitchVisualS(s, previousS, sz = 0) {
+    const contact = contactS(sz);
+    return previousS < contact && s >= contact ? contact : s;
   }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
@@ -678,7 +665,7 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, BAT, batCursorBounds, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, stadiumOutline, stadiumSection, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, pitchVisualS, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, stadiumOutline, stadiumSection, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;
 
@@ -1907,7 +1894,7 @@ function throwPitch() {
 }
 
 function startPitch(pi, windup) {
-  C.bodyS = 0;
+  C.bodyS = 0; C.drawS = -Infinity;
   C.pi = pi; C.t0 = now(); C.W = windup; C.dur = BB.pitchDuration(pi); C.phase = 'pitching';
   C.out = null; C.swingAt = null; C.impactAt = null; C.resolved = false; C.waitNote = false; C.swung = false; C.buntTry = false; C.obsBunt = null;
   $('#speed').dataset.n = ''; duckBgm(true);
@@ -2141,9 +2128,12 @@ function updatePitch(t) {
   }
   const s = (e - C.W) / C.dur;
   const r = role();
-  // 10%から予測を表示。変化球に合わせて動き、打撃位置で実際の到達点へ収束する。
-  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= BB.contactS(ST.dz) * 0.1 && s < BB.contactS(ST.dz) + 0.02) {
-    const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
+  const contact = BB.contactS(ST.dz), previousS = C.drawS ?? -Infinity;
+  const visualS = BB.pitchVisualS(s, previousS, r === 'bat' ? ST.dz : VIS.dz);
+  const contactFrame = previousS < contact && s >= contact; C.drawS = s;
+  // 10%から表示。球種・重力・立ち位置を含む実際の通過点と同じ座標を使う。
+  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= contact * 0.1 && (s < contact || contactFrame)) {
+    const at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
   } else guess.visible = false;
@@ -2170,7 +2160,7 @@ function updatePitch(t) {
   // 投手側：結果待ちならミットで止める
   if (r !== 'bat' && !C.out && s > 1) sMax = 1 + 1.05 / 18.44;
   if (C.out && (C.out.kind === 'inplay' || C.out.kind === 'foul') && !C.resolved) sMax = Math.min(sMax, 1);
-  const ss = Math.min(s, sMax);
+  const ss = Math.min(visualS, sMax);
   const bp = BB.pitchPos(C.pi, ss);
   if (C.phase === 'pitching' || C.phase === 'call') {
     ball.visible = true; ball.position.set(bp.x, bp.y, bp.z); ball.rotation.x += 0.6;

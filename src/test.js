@@ -31,29 +31,18 @@ for(const type of BB.PITCH_KEYS) for(let bl=1;bl<=7;bl++) for(const speed of [20
   }
   predictionCases++;
 }
-// 変化球の予測は曲がる方向へ動き、変化量が大きいほど移動幅が増える。
-for(const type of BB.PITCH_KEYS.filter(t=>!['st','kn'].includes(t))) for(const sz of [-.9,0,.6]) {
-  let previous=0;
-  for(let bl=1;bl<=7;bl++) {
-    const pi=BB.makePitch(1,type,0,.8,42,146,100,bl), contact=BB.contactS(sz), end=BB.pitchPos(pi,contact);
-    const initial=BB.predictContact(pi,contact*.1,sz), mid=BB.predictContact(pi,contact*.5,sz), late=BB.predictContact(pi,contact*.9,sz);
-    const error=p=>Math.hypot(p.x-end.x,p.y-end.y), distance=error(initial);
-    assert.ok(distance>previous);previous=distance;
-    const p=BB.PITCHES[type],t=Math.min(contact*.1,1),endS=Math.min(contact,1);
-    const raw=pi.bm*Math.hypot(p.bx,p.by)*(Math.pow(endS,p.k)-Math.pow(t,p.k)-p.k*Math.pow(t,p.k-1)*(endS-t));
-    assert.ok(distance<=raw*.25+1e-12);
-    assert.ok(error(mid)<distance&&error(late)<error(mid));
-    assert.ok((end.x-initial.x)*BB.PITCHES[type].bx>=0);
-    assert.ok((end.y-initial.y)*BB.PITCHES[type].by>=0);
-    assert.deepEqual(BB.predictContact(pi,contact,sz),end);
-  }
+// 青い円は表示直後から実際の打撃面の通過点に一致。ナックルもseedを含めた軌道を使う。
+for(const type of BB.PITCH_KEYS)for(const speed of [20,146,1000])for(const sz of [-.9,0,.6])for(const seed of [1,42,999]){
+  const pi=BB.makePitch(1,type,.12,.8,seed,speed,10000,7),contact=BB.contactS(sz),target=BB.contactPoint(pi,sz);
+  for(const progress of [.1,.2,.5,.9,.99,1,1.1])assert.deepEqual(BB.predictContact(pi,contact*progress,sz),target);
+  // 描画が通過面をまたいだフレームでは、円とボールの3D中心が完全一致する。
+  const sample=BB.pitchVisualS(contact+.2,contact-.1,sz);
+  assert.deepEqual(BB.pitchPos(pi,sample),BB.predictContact(pi,contact+.2,sz));
+  assert.equal(BB.pitchVisualS(contact+.4,contact+.2,sz),contact+.4);
 }
-// ナックルは途中の予測も揺れ、seedごとに異なる。最後は正確な打撃位置。
-for(let seed=1;seed<=30;seed++){
-  const pi=BB.makePitch(1,'kn',0,.8,seed,108,100,7),contact=BB.contactS(0);
-  assert.notDeepEqual(BB.predictContact(pi,.2),BB.predictContact(pi,.6));
-  assert.deepEqual(BB.predictContact(pi,contact),BB.pitchPos(pi,contact));
-}
+// 投球途中に前後へ移動したら、その打撃面の位置へ即時追従する。
+const movingPitch=BB.makePitch(1,'sc',.1,.8,42,92,10000,7);
+assert.notDeepEqual(BB.predictContact(movingPitch,.3,-.9),BB.predictContact(movingPitch,.3,.6));
 // 全球種・全段階で、変化由来のずれを直前の倍率から半分にする。
 for(const type of BB.PITCH_KEYS.filter(t=>t!=='st')) for(let bl=1;bl<=7;bl++) {
   const pi=BB.makePitch(1,type,0,0.8,42,146,100,bl);
@@ -63,15 +52,6 @@ for(const type of BB.PITCH_KEYS.filter(t=>t!=='st')) for(let bl=1;bl<=7;bl++) {
   assert.ok(Math.abs((changed.y-straight.y)-0.5*(old.y-straight.y))<1e-10);
 }
 assert.equal(BB.breakScale('st',7),1);
-// 大きく落ちるフォークは高めの予測から下へ動き、最後に実際の到達位置へ合う。
-const fork=BB.makePitch(1,'fk',0,0.8,42,134,100,7), target=BB.pitchPos(fork,1);
-assert.ok(BB.predictContact(fork,0.2).y>BB.predictContact(fork,0.6).y);
-assert.ok(BB.predictContact(fork,0.6).y>target.y);
-assert.deepEqual(BB.predictContact(fork,1),target);
-assert.ok(Math.abs(BB.predictContact(fork,0.999).y-target.y)<0.001);
-// 直球では20km/hの大きな山なりを未来の変化と誤認しない。
-const slow=BB.makePitch(1,'st',0,0.8,42,20,100,4);
-assert.ok(Math.abs(BB.predictContact(slow,0.2).y-BB.pitchPos(slow,1).y)<0.05);
 console.log('prediction checks passed:',predictionCases,'pitch configurations');
 // 打撃結果の分布をシミュレーション（上手な打者: タイミング誤差σ=0.04, カーソル誤差小）
 let gs=BB.newGame(3,'t');const cnt={};let games=0,runs=0;

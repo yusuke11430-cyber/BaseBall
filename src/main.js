@@ -791,7 +791,7 @@ function throwPitch() {
 }
 
 function startPitch(pi, windup) {
-  C.bodyS = 0;
+  C.bodyS = 0; C.drawS = -Infinity;
   C.pi = pi; C.t0 = now(); C.W = windup; C.dur = BB.pitchDuration(pi); C.phase = 'pitching';
   C.out = null; C.swingAt = null; C.impactAt = null; C.resolved = false; C.waitNote = false; C.swung = false; C.buntTry = false; C.obsBunt = null;
   $('#speed').dataset.n = ''; duckBgm(true);
@@ -1025,9 +1025,12 @@ function updatePitch(t) {
   }
   const s = (e - C.W) / C.dur;
   const r = role();
-  // 10%から予測を表示。変化球に合わせて動き、打撃位置で実際の到達点へ収束する。
-  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= BB.contactS(ST.dz) * 0.1 && s < BB.contactS(ST.dz) + 0.02) {
-    const contact = BB.contactS(ST.dz), at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
+  const contact = BB.contactS(ST.dz), previousS = C.drawS ?? -Infinity;
+  const visualS = BB.pitchVisualS(s, previousS, r === 'bat' ? ST.dz : VIS.dz);
+  const contactFrame = previousS < contact && s >= contact; C.drawS = s;
+  // 10%から表示。球種・重力・立ち位置を含む実際の通過点と同じ座標を使う。
+  if (r === 'bat' && C.phase === 'pitching' && !C.out && s >= contact * 0.1 && (s < contact || contactFrame)) {
+    const at = BB.predictContact(C.pi, s, ST.dz), k = 1 - BB.clamp(s / contact, 0, 1);
     guess.visible = true; guess.position.set(at.x, at.y, at.z);
     const rad = 0.075 + 0.07 * k; guess.scale.set(rad, rad, 1);
   } else guess.visible = false;
@@ -1054,7 +1057,7 @@ function updatePitch(t) {
   // 投手側：結果待ちならミットで止める
   if (r !== 'bat' && !C.out && s > 1) sMax = 1 + 1.05 / 18.44;
   if (C.out && (C.out.kind === 'inplay' || C.out.kind === 'foul') && !C.resolved) sMax = Math.min(sMax, 1);
-  const ss = Math.min(s, sMax);
+  const ss = Math.min(visualS, sMax);
   const bp = BB.pitchPos(C.pi, ss);
   if (C.phase === 'pitching' || C.phase === 'call') {
     ball.visible = true; ball.position.set(bp.x, bp.y, bp.z); ball.rotation.x += 0.6;

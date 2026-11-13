@@ -87,27 +87,14 @@ const BB = (() => {
   }
   function inZone(x, y) { return x >= ZONE.x0 - 0.035 && x <= ZONE.x1 + 0.035 && y >= ZONE.y0 - 0.035 && y <= ZONE.y1 + 0.035; }
 
-  // 現時点までの変化から到達位置を予測。残りの変化は徐々に見えてきて、接触時は判定と一致する。
-  function predictContact(pi, s, sz = 0) {
-    const contact = contactS(sz), at = pitchPos(pi, contact);
-    if (noBreak(pi.type) || s >= contact) return at;
-    const targetX = at.x, targetY = at.y;
-    const p = PITCHES[pi.type], m = pi.bm || 1, t = clamp(s, 0, contact), end = Math.min(contact, 1), seen = Math.min(t, 1);
-    // 観測済みの曲がりと現在の変化速度で、残り区間を外挿する（重力は織り込み済み）。
-    const remaining = Math.pow(end, p.k) - Math.pow(seen, p.k) - p.k * Math.pow(seen, p.k - 1) * (end - seen);
-    at.x -= p.bx * m * remaining; at.y -= p.by * m * remaining;
-    if (pi.kp) {
-      const wave = (u, frequency, phase) => Math.sin(u * frequency + phase) * Math.sin(u * Math.PI);
-      const slope = (u, frequency, phase) => frequency * Math.cos(u * frequency + phase) * Math.sin(u * Math.PI) + Math.PI * Math.sin(u * frequency + phase) * Math.cos(u * Math.PI);
-      // ナックルの不規則な揺れも反映。残り時間が短くなるほど予測のずれが消える。
-      const forecast = (frequency, phase) => 0.06 * m * (wave(seen, frequency, phase) + slope(seen, frequency, phase) * (end - seen) - wave(end, frequency, phase));
-      at.x += forecast(13, pi.kp[0]); at.y += forecast(10, pi.kp[1]);
-    }
-    // 予測円だけを穏やかにする。小さい変化は1/4、大きな変化も約2球分以内に収める。
-    // 滑らかに制限し、変化量1〜7の差と接触時の一致を保つ。
-    const dx = at.x - targetX, dy = at.y - targetY, gain = 0.25 / (1 + 0.25 * Math.hypot(dx, dy) / 0.28);
-    at.x = targetX + dx * gain; at.y = targetY + dy * gain;
-    return at;
+  // 予測円の中心は、打者の打撃面で実際に通過する点そのもの。
+  // 残りの変化を推測して中心を動かすと、見た目と判定がずれるため使わない。
+  function predictContact(pi, s, sz = 0) { return pitchPos(pi, contactS(sz)); }
+  // 高速球や処理落ちで打撃面を1フレームで飛び越しても、通過点を一度描く。
+  // 描画専用。投球時刻・打撃タイミング・判定は実際のsで処理する。
+  function pitchVisualS(s, previousS, sz = 0) {
+    const contact = contactS(sz);
+    return previousS < contact && s >= contact ? contact : s;
   }
 
   // 打球の軌道（バウンド込み）。phi: 中堅0°、右翼+、la: 打球角度、ev: km/h
@@ -390,6 +377,6 @@ const BB = (() => {
   }
 
   return { PITCHES, PITCH_KEYS, ZONE, MEET, BAT, batCursorBounds, SWING_LAG, TIMING_WIN, RELEASE, rng, gauss, clamp,
-    makePitch, noBreak, breakScale, predictContact, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, stadiumOutline, stadiumSection, FENCE_H, newGame, apply, batSide };
+    makePitch, noBreak, breakScale, predictContact, pitchVisualS, judgeBunt, contactS, contactPoint, hitBatter, swingPose, BUNT, staminaCost, BREAK_MIN, BREAK_MAX, BREAK_STD, affordable, STA_MAX, SPEED_MIN, SPEED_MAX, pitchDuration, pitchPos, inZone, judge, flight, fenceDist, stadiumOutline, stadiumSection, FENCE_H, newGame, apply, batSide };
 })();
 if (typeof module !== 'undefined') module.exports = BB;
