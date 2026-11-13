@@ -126,6 +126,27 @@
         "accent": "#fff6df"
       },
       "createdAt": "2026-11-11T13:09:05.243Z"
+    },
+    {
+      "id": "4827dbb5-1d2b-4728-b808-1cc21ed07d40",
+      "appearance": {
+        "name": "もり",
+        "number": "7",
+        "hair": 28,
+        "eyes": 14,
+        "brows": 10,
+        "mouth": 21,
+        "paint": 9,
+        "pattern": 5,
+        "hat": 2,
+        "skin": "#111827",
+        "hairColor": "#30251e",
+        "eyeColor": "#afb7c5",
+        "uniform": "#7d3e50",
+        "hatColor": "#7354a8",
+        "accent": "#7354a8"
+      },
+      "createdAt": "2026-11-13T10:27:25.444Z"
     }
   ]
 }
