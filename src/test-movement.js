@@ -37,3 +37,13 @@ assert.ok(Math.abs(prev+1.35)<.001);assert.equal(b.ST.dz,0);
 b.ctx.applyStance({lh:true,x:1,dz:.2,b:false},true);assert.equal(vm.runInContext('VIS.x',b.ctx),1);
 b.C.phase='play';b.ctx.applyStance({lh:true,x:1.4,dz:.6,b:false},true);b.ctx.updateStance(1);assert.equal(vm.runInContext('VIS.x',b.ctx),1);
 console.log('Movement: continuous throttled updates, final position, 30/60/144Hz speed, remote smoothing and seat changes passed');
+// バントのカーソルも同じ送信制限で共有し、構えの補間で水平のバットを通常姿勢に戻さない。
+const bunt=client();bunt.ST.b=true;bunt.C.cur={x:.2,y:1.1};bunt.ctx.sendStance();assert.equal(bunt.sent[0].cx,.2);assert.equal(bunt.sent[0].cy,1.1);
+bunt.C.cur.y=.5;bunt.ctx.sendStance();bunt.advance(60);assert.equal(bunt.sent.at(-1).cy,.5);
+let poseResets=0;bunt.ctx.batPivot.quaternion.copy=()=>poseResets++;bunt.ctx.role=()=>'pitch';
+bunt.ctx.applyStance({lh:false,x:-.95,dz:.2,b:true,cx:.15,cy:1.12},true);
+for(let i=0;i<60;i++)bunt.ctx.updateStance(i/60);
+assert.equal(poseResets,0);assert.equal(vm.runInContext('VIS.b',bunt.ctx),true);assert.equal(vm.runInContext('VIS.cx',bunt.ctx),.15);assert.equal(vm.runInContext('VIS.cy',bunt.ctx),1.12);
+bunt.ctx.applyStance({lh:true,x:.95,dz:0,b:true,cx:-.2,cy:.45},true);assert.equal(vm.runInContext('VIS.lh',bunt.ctx),true);assert.equal(vm.runInContext('VIS.cy',bunt.ctx),.45);
+bunt.ctx.applyStance({lh:true,x:.95,dz:0,b:false},true);bunt.ctx.updateStance(2);assert.ok(poseResets>0);
+console.log('Remote bunt: cursor updates, both batter boxes, persistent horizontal pose and release passed');

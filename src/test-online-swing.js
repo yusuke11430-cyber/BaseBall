@@ -47,3 +47,12 @@ peers=[remote];clock=14;ctx.handlePeers();assert.equal(C.swingAt,14);
 // 旧版クライアントの結果のみの同期にも対応。
 C.out=null;ctx.onSw({g:C.gs.gid,n:1,kind:'whiff',swung:true,cy:.9});assert.equal(C.swingY,.9);
 console.log('Online swing: practice, repeated whiffs, pitcher/spectator presence, deduplication and legacy outcomes passed');
+// 部屋作成者のOFF設定を最初の共有ゲーム状態へ固定。相手の構え・カーソルもpresenceから受け取る。
+C.gs=null;C.seat='home';C.phase='aim';NET.innings=3;NET.brawlEnabled=false;let initialGame,remoteStance;
+ctx.enterGame=()=>{};NET.sendGs=g=>initialGame=JSON.parse(JSON.stringify(g));
+peers=[{presence:{seat:'away',nick:'guest'}}];ctx.handlePeers();assert.equal(C.gs.brawlEnabled,false);assert.equal(initialGame.brawlEnabled,false);
+NET.brawlEnabled=true;assert.equal(C.gs.brawlEnabled,false);
+ctx.applyStance=(st,smooth)=>remoteStance={...st,smooth};
+for(const phase of ['aim','pitching']){C.phase=phase;peers[0].presence.st={g:C.gs.gid,lh:true,x:1.1,dz:-.4,b:true,cx:-.2,cy:1.1};ctx.handlePeers();assert.equal(remoteStance.b,true);assert.equal(remoteStance.cx,-.2);assert.equal(remoteStance.cy,1.1);assert.equal(remoteStance.smooth,true);}
+peers[0].presence.st.b=false;ctx.handlePeers();assert.equal(remoteStance.b,false);
+console.log('Room rules and remote bunt: host setting in shared state and live bunt cursor/release presence passed');

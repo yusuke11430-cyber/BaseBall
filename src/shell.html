@@ -113,6 +113,8 @@
       <header><h2 id="setupTitle">対戦部屋をつくる</h2><button class="sheet-close" id="setupClose">戻る</button></header>
       <label class="fld" for="nick">プレイヤー名<input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー"></label>
       <div class="fld" id="inningsSetup">イニング数<div class="seg" id="innSeg" role="group" aria-label="イニング数"><button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button></div></div>
+      <div class="fld" id="brawlSetup">乱闘<div class="seg" id="brawlSeg" role="group" aria-label="乱闘の設定"><button type="button" data-v="on" aria-pressed="true">ON</button><button type="button" data-v="off" aria-pressed="false">OFF</button></div><small>OFF：デッドボールは一塁へ進み、試合を続けます。</small></div>
+      <p id="roomRulesNote" hidden>イニング数・乱闘の設定は、部屋を作った人の設定になります。</p>
       <div class="fld" id="codeEntry" hidden><label for="codeIn">4文字の部屋コード</label><input class="txt code" id="codeIn" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="部屋コード"></div>
       <p class="sheet-error" id="setupStatus" role="alert" hidden></p>
       <p class="sheet-note">次に、この試合で使う選手を選びます。</p>

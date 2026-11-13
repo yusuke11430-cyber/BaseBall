@@ -133,8 +133,13 @@ const view=fs.readFileSync(__dirname+'/brawl-view.js','utf8');
 assert.match(view,/const fist=BRAWL\.fistPose\(f\)/);
 const shell=fs.readFileSync(__dirname+'/shell.html','utf8');
 assert.match(shell,/id="brawlUI"[^>]* hidden/);assert.match(shell,/id="brawlControls" hidden/);
-const howto=shell.slice(shell.indexOf('<div class="lobby"'),shell.indexOf('<div class="studio"'));
+const howto=shell.slice(shell.indexOf('id="titleHelp"'),shell.indexOf('<div class="studio"'));
 assert.ok(!/乱闘|fightWeak|fightStrong/.test(howto));
+// ダメージ後の両陣営の体力を、数値と5セルの両方へ反映。KOの0も表示する。
+const healthNodes={};const node=id=>healthNodes[id]||(healthNodes[id]={attrs:{},setAttribute(k,v){this.attrs[k]=v;},classList:{toggle(){}},firstElementChild:{style:{}},children:Array.from({length:5},()=>({classList:{toggle(k,on){this.empty=on;}}}))});
+const healthState=B.create('health'),healthCtx=vm.createContext({C:{brawl:{state:healthState},names:{home:'H',away:'A'}},BRAWL:B,$:node});
+vm.runInContext(view.slice(view.indexOf('function renderBrawlVitals('),view.indexOf('function updateBrawlCamera(')),healthCtx);
+for(let hp=5;hp>=0;hp--){healthState.fighters.home.hp=hp;healthState.fighters.away.hp=5-hp;healthCtx.renderBrawlVitals();for(const side of ['Home','Away']){const expected=side==='Home'?hp:5-hp;assert.equal(node('#fight'+side+'Hp').attrs['aria-valuenow'],String(expected));assert.equal(node('#fight'+side+'Value').textContent,expected+' / 5');assert.equal(node('#fight'+side+'Hp').children.filter(c=>c.classList.empty).length,5-expected);}}
 // 体力・名前・呼吸の列は、ホーム固定ではなく実際の画面上の左右へ並ぶ。
 for(const moundSide of ['home','away'])for(const sign of [1,-1])for(const seat of ['home','away','spec']){
  const state=B.create('bars',moundSide),models={};for(const side of ['home','away'])models[side]={position:{z:B.ARENA.origin+state.fighters[side].x}};

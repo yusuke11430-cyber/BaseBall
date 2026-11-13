@@ -14,7 +14,7 @@ function clearBrawl() {
   C.brawl=null;fightKeys.left=fightKeys.right=fightKeys.guard=false;show('#brawlUI',false);show('#brawlControls',false);
 }
 function startBrawl(cause) {
-  if(!C.gs||!C.pi||cause.g!==C.gs.gid||cause.n!==C.pi.n||C.phase==='over')return;
+  if(!C.gs||C.gs.brawlEnabled===false||!C.pi||cause.g!==C.gs.gid||cause.n!==C.pi.n||C.phase==='over')return;
   const id=cause.g+':'+cause.n;
   if(C.brawl)return;
   const batSide=BB.batSide(C.gs),state=BRAWL.create(id,batSide==='home'?'away':'home');
@@ -50,7 +50,7 @@ function onFightInput(side,value) {
   F.seenInput=value.seq;F.inputs[side]=BRAWL.input(value);
 }
 function onFightState(wire) {
-  if(!wire||!C.gs||typeof wire.id!=='string'||!wire.cause||wire.cause.g!==C.gs.gid||wire.cause.kind!=='hbp')return;
+  if(!wire||!C.gs||C.gs.brawlEnabled===false||typeof wire.id!=='string'||!wire.cause||wire.cause.g!==C.gs.gid||wire.cause.kind!=='hbp')return;
   const id=wire.cause.g+':'+wire.cause.n;if(wire.id!==id)return;
   const state=BRAWL.readSnapshot(wire.state,id);if(!state)return;
   if(!C.brawl){
@@ -86,6 +86,7 @@ function consumeFightEvents() {
 function finishBrawl() {
   const F=C.brawl;if(!F||F.finished||!F.state.done)return;
   F.finished=true;clearInterval(F.timer);C.gs=BRAWL.finishGame(C.gs,F.state);C.phase='over';
+  renderBrawlVitals();
   show('#brawlControls',false);$('#fightMessage').textContent=F.state.winner?'決着！':'相打ち！';
   if(F.authority){publishFight();NET.sendGs(C.gs);}
   banner(F.state.winner?'乱闘決着！':'相打ち！',F.state.winner?'big':'');gameOver();
@@ -127,9 +128,17 @@ function updateBrawl(t,dt) {
     u.handL.position.set(f.action==='guard'?-.12:-.3,f.action==='guard'?1.06:.9,f.action==='guard'?.38:.2);
     u.handR.position.set(f.action==='guard'?.12:fist.x,f.action==='guard'?1.06:fist.y,f.action==='guard'?.38:fist.z);
     if(!f.hp)p.position.y=-.15;
-    const cells=$('#fight'+(side==='home'?'Home':'Away')+'Hp').children;
-    for(let i=0;i<5;i++)cells[i].classList.toggle('empty',i>=f.hp);
-    $('#fight'+(side==='home'?'Home':'Away')+'Value').textContent=f.hp+' / 5';
+  }
+  renderBrawlVitals();
+}
+function renderBrawlVitals() {
+  if(!C.brawl)return;
+  for(const side of ['home','away']){
+    const f=C.brawl.state.fighters[side],bar=$('#fight'+(side==='home'?'Home':'Away')+'Hp'),cells=bar.children;
+    for(let i=0;i<BRAWL.HP;i++)cells[i].classList.toggle('empty',i>=f.hp);
+    bar.setAttribute('role','progressbar');bar.setAttribute('aria-label',C.names[side]+'の体力');
+    bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax',String(BRAWL.HP));bar.setAttribute('aria-valuenow',String(f.hp));
+    $('#fight'+(side==='home'?'Home':'Away')+'Value').textContent=f.hp+' / '+BRAWL.HP;
     const breath=$('#fight'+(side==='home'?'Home':'Away')+'Breath'),percent=Math.round(f.breath/BRAWL.BREATH.MAX*100);
     breath.firstElementChild.style.width=percent+'%';breath.setAttribute('aria-valuenow',percent);
     breath.classList.toggle('low',f.breathLocked||percent<=25);

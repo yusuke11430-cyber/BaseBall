@@ -21,6 +21,7 @@ function openMatchSetup(mode,audible=true) {
   $('#matchSetup').dataset.mode=mode;
   show('#setupStatus',false);
   show('#inningsSetup',mode!=='join');show('#codeEntry',mode==='join');
+  show('#brawlSetup',mode!=='join');show('#roomRulesNote',mode==='join');
   show('#createBtn',mode==='create');show('#joinBtn',mode==='join');show('#cpuBtn',mode==='practice');
   const id=mode==='create'?'#titleCreate':mode==='join'?'#titleJoin':'#titlePractice';
   openTitlePanel('#matchSetup',$(id));

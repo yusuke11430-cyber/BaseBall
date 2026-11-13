@@ -298,9 +298,9 @@ const BB = (() => {
     return x < 0.88 ? 'double' : 'triple';
   }
 
-  function newGame(innings, gid) {
+  function newGame(innings, gid, brawlEnabled = true) {
     return { gid, n: 0, inning: 1, top: true, outs: 0, b: 0, s: 0, bases: [0, 0, 0],
-      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, over: false, msg: 'プレイボール!' };
+      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, brawlEnabled: brawlEnabled !== false, over: false, msg: 'プレイボール!' };
   }
   const batSide = gs => gs.top ? 'away' : 'home';
 
@@ -320,7 +320,7 @@ const BB = (() => {
       if (b[0]) { if (b[1]) { if (b[2]) score(1); b[2] = 1; } b[1] = 1; } b[0] = 1;
     };
     switch (o.kind) {
-      case 'hbp': msg = 'デッドボール・乱闘開始'; break;
+      case 'hbp': if (gs.brawlEnabled === false) { walk(); resetCount(); msg = 'デッドボール'; } else msg = 'デッドボール・乱闘開始'; break;
       case 'ball': gs.b++; msg = 'ボール'; if (gs.b >= 4) { walk(); resetCount(); msg = 'フォアボール'; } break;
       case 'strike': case 'whiff':
         gs.s++; msg = o.kind === 'whiff' ? '空振り' : 'ストライク';

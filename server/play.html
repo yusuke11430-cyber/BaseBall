@@ -103,7 +103,7 @@ body>.soundbar.open .vols{display:grid;background:var(--paper);border:1px solid 
 /* Fight overlay appears only after the encounter starts. */
 .brawl-ui{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);width:min(640px,calc(100% - 24px));z-index:7;pointer-events:none;padding:12px 18px;text-align:center;border-top:3px solid #bd7340}
 .fight-title{font-size:15px;font-weight:800;letter-spacing:.3em;color:#985638;margin-bottom:5px}.fight-bars{display:grid;grid-template-columns:1fr 1fr;gap:26px}.fight-player{text-align:left;min-width:0}.fight-player.screen-right{text-align:right}.fight-player.screen-right .fight-health{flex-direction:row-reverse}.fight-player.screen-right .fight-breath i{margin-left:auto}.fight-player b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.fight-health{display:flex;gap:4px;margin:7px 0 4px}.fight-health i{flex:1;height:13px;background:var(--home);border:1px solid #32718a;border-radius:1px}.fight-player.away .fight-health i{background:var(--away);border-color:#ad5130}.fight-health i.empty{background:#d7dcd2;border-color:#c8d0c5}.fight-player small{font:600 11px var(--f-display)}
+.fight-health{display:flex;gap:4px;margin:7px 0 4px}.fight-health i{flex:1;height:13px;background:var(--home);border:1px solid #32718a;border-radius:1px}.fight-player.away .fight-health i{background:var(--away);border-color:#ad5130}.fight-player .fight-health i.empty{background:#d7dcd2;border-color:#c8d0c5;opacity:.35}.fight-player small{font:600 11px var(--f-display)}
 .fight-breath{height:5px;border-radius:1px;overflow:hidden;background:#d7dcd2;margin-top:5px}.fight-breath i{display:block;width:100%;height:100%;background:#578d82;transition:width .1s linear}.fight-breath.low i{background:#c68048}.fight-player .fight-breath-label{display:block;font:500 10px var(--f-body);min-height:1.7em;margin-top:3px;color:var(--muted)}.fight-message{font-size:11px;font-weight:600;min-height:1.5em;margin-top:8px}
 .brawl-controls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);width:min(650px,calc(100% - 24px));z-index:8;padding:10px 12px;background:#143764f5;color:#fff;text-align:center}.fight-buttons{display:flex;gap:5px;justify-content:center}.fight-buttons button{flex:1;min-width:0;touch-action:none;padding:10px 5px;font-size:14px}.fight-help{font-size:10px;line-height:1.6;margin-top:7px;color:#c5d7eb}
 @media(max-width:850px){.contact-note{left:max(12px,env(safe-area-inset-left,0px));transform:none;max-width:calc(48vw - 24px);white-space:normal;font-size:13px}.studio-body{grid-template-columns:150px minmax(0,1fr)}.studio-main{grid-template-columns:1fr}.studio-preview{display:flex;align-items:center}#avatarCanvas{width:150px;height:190px}.preview-caption{flex:1}}
@@ -226,6 +226,8 @@ body>.soundbar.open .vols{display:grid;background:var(--paper);border:1px solid 
       <header><h2 id="setupTitle">対戦部屋をつくる</h2><button class="sheet-close" id="setupClose">戻る</button></header>
       <label class="fld" for="nick">プレイヤー名<input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー"></label>
       <div class="fld" id="inningsSetup">イニング数<div class="seg" id="innSeg" role="group" aria-label="イニング数"><button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button></div></div>
+      <div class="fld" id="brawlSetup">乱闘<div class="seg" id="brawlSeg" role="group" aria-label="乱闘の設定"><button type="button" data-v="on" aria-pressed="true">ON</button><button type="button" data-v="off" aria-pressed="false">OFF</button></div><small>OFF：デッドボールは一塁へ進み、試合を続けます。</small></div>
+      <p id="roomRulesNote" hidden>イニング数・乱闘の設定は、部屋を作った人の設定になります。</p>
       <div class="fld" id="codeEntry" hidden><label for="codeIn">4文字の部屋コード</label><input class="txt code" id="codeIn" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="部屋コード"></div>
       <p class="sheet-error" id="setupStatus" role="alert" hidden></p>
       <p class="sheet-note">次に、この試合で使う選手を選びます。</p>
@@ -581,9 +583,9 @@ const BB = (() => {
     return x < 0.88 ? 'double' : 'triple';
   }
 
-  function newGame(innings, gid) {
+  function newGame(innings, gid, brawlEnabled = true) {
     return { gid, n: 0, inning: 1, top: true, outs: 0, b: 0, s: 0, bases: [0, 0, 0],
-      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, over: false, msg: 'プレイボール!' };
+      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, brawlEnabled: brawlEnabled !== false, over: false, msg: 'プレイボール!' };
   }
   const batSide = gs => gs.top ? 'away' : 'home';
 
@@ -603,7 +605,7 @@ const BB = (() => {
       if (b[0]) { if (b[1]) { if (b[2]) score(1); b[2] = 1; } b[1] = 1; } b[0] = 1;
     };
     switch (o.kind) {
-      case 'hbp': msg = 'デッドボール・乱闘開始'; break;
+      case 'hbp': if (gs.brawlEnabled === false) { walk(); resetCount(); msg = 'デッドボール'; } else msg = 'デッドボール・乱闘開始'; break;
       case 'ball': gs.b++; msg = 'ボール'; if (gs.b >= 4) { walk(); resetCount(); msg = 'フォアボール'; } break;
       case 'strike': case 'whiff':
         gs.s++; msg = o.kind === 'whiff' ? '空振り' : 'ストライク';
@@ -1325,13 +1327,15 @@ function applyStance(st, smooth = false) {
   const next = { lh: !!st.lh, x: BB.clamp(Number.isFinite(+st.x) ? +st.x : -0.95, -1.45, 1.45), dz: BB.clamp(Number.isFinite(+st.dz) ? +st.dz : 0, -0.9, 0.6), b: !!st.b };
   if (Math.abs(next.x) < 0.55) next.x = next.lh ? 0.95 : -0.95;
   if ((next.x > 0) !== next.lh) next.x = -next.x;
+  const bounds=BB.batCursorBounds(next.x,next.lh);
+  next.cx=BB.clamp(Number.isFinite(st.cx)?st.cx:0,bounds.min,bounds.max);next.cy=BB.clamp(Number.isFinite(st.cy)?st.cy:.85,.34,1.3);
   // 打席の切替は瞬時に。通常の相手の移動だけを補間する。
-  if (smooth && next.lh === VIS.lh) { stanceTarget = next; VIS.b = next.b; return; }
+  if (smooth && next.lh === VIS.lh) { stanceTarget = next; VIS.b = next.b; VIS.cx=next.cx;VIS.cy=next.cy;return; }
   stanceTarget = null; VIS = next; placeStance();
 }
 function placeStance() {
   batter.position.set(VIS.x, 0, -0.05 + VIS.dz);
-  if (C.swingAt === null) { batter.rotation.y = VIS.lh ? -Math.PI / 2 : Math.PI / 2; batPivot.position.copy(batHome(VIS)); batPivot.quaternion.copy(keysOf(VIS)[0][1]); }
+  if (C.swingAt === null && !VIS.b) { batter.rotation.y = VIS.lh ? -Math.PI / 2 : Math.PI / 2; batPivot.position.copy(batHome(VIS)); batPivot.quaternion.copy(keysOf(VIS)[0][1]); }
   plane.constant = -VIS.dz; cursor.position.z = VIS.dz;
 }
 function updateStance(t) {
@@ -1676,7 +1680,7 @@ const seed = () => (Math.random() * 4294967295) >>> 0;
 function show(el, on) { (typeof el === 'string' ? $(el) : el).hidden = !on; }
 function status(html) { $('#status').innerHTML = html || ''; refreshPanel(); }
 function wantsBrawlAdvice(gs,seat) {
-  if(!gs||gs.over||!['home','away'].includes(seat)||BB.batSide(gs)===seat)return false;
+  if(!gs||gs.over||gs.brawlEnabled===false||!['home','away'].includes(seat)||BB.batSide(gs)===seat)return false;
   const opponent=seat==='home'?'away':'home';
   return gs.inning>=Math.floor(gs.innings*2/3)+1&&gs.score[seat]<gs.score[opponent];
 }
@@ -1878,7 +1882,7 @@ function onBatMotion(m) {
 function onSw(o) {
   if (!C.pi || o.n !== C.pi.n || o.g !== C.gs.gid || C.out) return;
   C.out = o;
-  if (o.kind === 'hbp') { startBrawl(o); return; }
+  if (o.kind === 'hbp') { if(C.gs.brawlEnabled!==false)startBrawl(o);else resolve();return; }
   if (o.bunt) { C.impactAt = Math.max(now() + 0.02, C.t0 + C.W + C.dur * BB.contactS(o.sz)); C.obsBunt = { x: o.cx, y: o.cy, lh: o.lh, sz: o.sz }; }
   else if (o.swung) {
     C.impactAt = Math.max(now() + 0.02, C.t0 + C.W + C.dur * BB.contactS(o.sz));
@@ -1913,7 +1917,7 @@ function resolve() {
     const strikeOut = /三振/.test(newGs.msg), walk = /フォア/.test(newGs.msg);
     if (strikeOut || walk || /チェンジ|ゲームセット|点/.test(newGs.msg)) banner(newGs.msg.replace(/ .*/, ''), strikeOut ? 'out' : '');
     call(newGs.msg.split(' ')[0]);
-    call2(strikeOut ? 'k' : walk ? 'walk' : o.kind); if (strikeOut) setTimeout(() => SFX.clap('short'), 700);
+    call2(strikeOut ? 'k' : walk ? 'walk' : o.kind==='hbp'?'deadball':o.kind); if (strikeOut) setTimeout(() => SFX.clap('short'), 700);
     finishPitch(newGs, strikeOut || walk ? 1.9 : 1.1);
   }
 }
@@ -2054,7 +2058,7 @@ function updatePitch(t) {
     const hbp = BB.hitBatter(C.pi, ST, C.bodyS || 0, s); C.bodyS = Math.max(C.bodyS || 0, s);
     if (hbp) {
       const o = { kind: 'hbp', n: C.pi.n, g: C.gs.gid, seed: C.pi.seed, sz: ST.dz, x: ST.x, lh: ST.lh, bodyS: hbp.s };
-      C.out = o; NET.sendSw(o); startBrawl(o); return;
+      C.out = o; NET.sendSw(o); if(C.gs.brawlEnabled!==false)startBrawl(o);else resolve();return;
     }
   }
   // 打者：バントは、球がバットの位置に来た瞬間に判定
@@ -2102,7 +2106,7 @@ function updateSwing(t) {
   const h = handOf(VIS), home = batHome(VIS);
   // バントの構え：バットを寝かせてカーソルの高さ・位置に合わせる
   const mine = role() === 'bat' && ST.b && C.phase !== 'play' && C.phase !== 'call';
-  const ob = !mine && (C.obsBunt || (role() !== 'bat' && VIS.b && C.phase !== 'play') ? (C.obsBunt || { x: 0, y: 0.85 }) : null);
+  const ob = !mine && (C.obsBunt || (role() !== 'bat' && VIS.b && C.phase !== 'play') ? (C.obsBunt || { x: VIS.cx??0, y: VIS.cy??.85, sz: VIS.dz }) : null);
   if (mine || ob) {
     const cx = mine ? C.cur.x : ob.x, cy = mine ? C.cur.y : ob.y;
     batPivot.position.lerp(new THREE.Vector3(cx - h * BB.BUNT.back, cy, (ob && ob.sz != null ? ob.sz : VIS.dz) + 0.04), 0.35);
@@ -2302,6 +2306,7 @@ function setCursor(x, y) {
   const bounds = BB.batCursorBounds(ST.x, ST.lh);
   C.cur.x = BB.clamp(x, bounds.min, bounds.max); C.cur.y = BB.clamp(y, 0.34, 1.3);
   cursor.position.set(C.cur.x, C.cur.y, ST.dz); buntBar.position.set(C.cur.x + handOf(ST) * 0.02, C.cur.y, ST.dz);
+  if(ST.b)sendStance();
 }
 // バント中のバットの当たる範囲
 const buntBar = overlay(new THREE.Mesh(new THREE.PlaneGeometry(BB.BUNT.back + BB.BUNT.tip, BB.BUNT.h * 2), new THREE.MeshBasicMaterial({ color: 0xffb627, opacity: 0.35, side: THREE.DoubleSide })), 6);
@@ -2332,7 +2337,9 @@ function sendStance() {
   const flush = () => {
     stT = 0;
     if (NET.mode !== 'online' || role() !== 'bat' || !C.gs) return;
-    const st = { g: C.gs.gid, lh: ST.lh, x: +ST.x.toFixed(3), dz: +ST.dz.toFixed(3), b: ST.b }, key = JSON.stringify(st);
+    const st = { g: C.gs.gid, lh: ST.lh, x: +ST.x.toFixed(3), dz: +ST.dz.toFixed(3), b: ST.b };
+    if(ST.b){st.cx=+C.cur.x.toFixed(3);st.cy=+C.cur.y.toFixed(3);}
+    const key = JSON.stringify(st);
     if (key === stLast) return;
     stLast = key; stSentAt = performance.now(); NET.sendSt(st);
   };
@@ -2398,7 +2405,7 @@ setInterval(() => {
 }, 16);
 
 // =============== 対戦相手（CPU / オンライン） ===============
-const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3,
+const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3, brawlEnabled:true,
   sendPi() { }, sendSw() { }, sendGs() { }, sendSt() { }, sendBat() { }, sendFight() { }, sendFightInput() { }, swingSeq: 0, oppSt: null };
 
 function cpuPitchSoon() {
@@ -2436,7 +2443,7 @@ function startCPU() {
   NET.mode = 'cpu'; C.seat = 'away'; C.names = { away: nickname(), home: 'CPU' };
   C.looks = { away: chosenAvatar, home: null };
   NET.sendPi = msg => cpuBat(buildPitch(msg)); NET.sendSw = () => { }; NET.sendGs = () => { }; NET.sendSt = () => { }; NET.oppSt = null;
-  C.gs = BB.newGame(NET.innings, 'cpu' + seed()); enterGame();
+  C.gs = BB.newGame(NET.innings, 'cpu' + seed(), NET.brawlEnabled); enterGame();
 }
 function enterGame() {
   clearBrawl();
@@ -2626,7 +2633,7 @@ async function goOnline(code, create) {
   if (token !== C.token || NET.mode !== 'online') return;
   NET.room = joined;
   const me = { v: 1, nick: nickname(), avatar: chosenAvatar ? AVATAR.clean(chosenAvatar) : null, seat: null, pi: null, sw: null, gs: null, sa: null, bf: null, fi: null };
-  if (create) { me.seat = 'home'; me.inn = NET.innings; C.seat = 'home'; }
+  if (create) { me.seat = 'home'; me.inn = NET.innings; me.br=NET.brawlEnabled;C.seat = 'home'; }
   NET.room.presence(me).catch(() => { });
   NET.sendPi = pi => NET.room && NET.room.presence({ pi }).catch(() => { });
   NET.sendSw = sw => NET.room && NET.room.presence({ sw }).catch(() => { });
@@ -2661,7 +2668,7 @@ function assignSeat(final) {
   }
   if (!seat) { if (final) $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています（同じコードで「部屋に入る」を押してもらえばOK）'; return; }
   C.seat = seat;
-  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
+  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings;patch.br=NET.brawlEnabled; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
   NET.room.presence(patch).catch(() => { });
   if (seat === 'spec') $('#waitStatus').innerHTML = '<span class="spin"></span>観戦モードで入りました';
   if (seat === 'home') handlePeers(); // 相手がもう来ていれば、すぐ試合を始める
@@ -2688,14 +2695,14 @@ function handlePeers(peers) {
   if (home && home.presence.inn && C.seat !== 'home') NET.innings = home.presence.inn | 0 || 3;
   // 試合開始：ホームが状態を作る
   if (C.seat === 'home' && opp && !C.gs && !(opp.presence && opp.presence.gs)) {
-    C.gs = BB.newGame(NET.innings, 'g' + seed()); NET.sendGs(C.gs); enterGame();
+    C.gs = BB.newGame(NET.innings, 'g' + seed(), NET.brawlEnabled); NET.sendGs(C.gs); enterGame();
   }
   if (opp && opp.presence) maybeAdopt(opp.presence.gs, opp.presence.seat);
   // 相手（打者）の構え・打席・バントを表示に反映
   const batP = C.gs ? (BB.batSide(C.gs) === 'home' ? home : away) : null;
   if (batP && batP.presence && batP.presence.st && typeof batP.presence.st === 'object' &&
       (!batP.presence.st.g || batP.presence.st.g === C.gs.gid) && role() !== 'bat') {
-    const st = batP.presence.st; NET.oppSt = { lh: !!st.lh, x: +st.x || -0.95, dz: +st.dz || 0, b: !!st.b };
+    const st = batP.presence.st; NET.oppSt = { lh: !!st.lh, x: +st.x || -0.95, dz: +st.dz || 0, b: !!st.b, cx:st.cx,cy:st.cy };
     if (C.phase !== 'play' && C.phase !== 'call' && C.phase !== 'brawl' && !C.brawl) { applyStance(NET.oppSt, true); drawPad(); }
   }
   if (C.seat === 'spec' && home && home.presence) maybeAdopt(home.presence.gs, 'home');
@@ -2737,7 +2744,7 @@ function clearBrawl() {
   C.brawl=null;fightKeys.left=fightKeys.right=fightKeys.guard=false;show('#brawlUI',false);show('#brawlControls',false);
 }
 function startBrawl(cause) {
-  if(!C.gs||!C.pi||cause.g!==C.gs.gid||cause.n!==C.pi.n||C.phase==='over')return;
+  if(!C.gs||C.gs.brawlEnabled===false||!C.pi||cause.g!==C.gs.gid||cause.n!==C.pi.n||C.phase==='over')return;
   const id=cause.g+':'+cause.n;
   if(C.brawl)return;
   const batSide=BB.batSide(C.gs),state=BRAWL.create(id,batSide==='home'?'away':'home');
@@ -2773,7 +2780,7 @@ function onFightInput(side,value) {
   F.seenInput=value.seq;F.inputs[side]=BRAWL.input(value);
 }
 function onFightState(wire) {
-  if(!wire||!C.gs||typeof wire.id!=='string'||!wire.cause||wire.cause.g!==C.gs.gid||wire.cause.kind!=='hbp')return;
+  if(!wire||!C.gs||C.gs.brawlEnabled===false||typeof wire.id!=='string'||!wire.cause||wire.cause.g!==C.gs.gid||wire.cause.kind!=='hbp')return;
   const id=wire.cause.g+':'+wire.cause.n;if(wire.id!==id)return;
   const state=BRAWL.readSnapshot(wire.state,id);if(!state)return;
   if(!C.brawl){
@@ -2809,6 +2816,7 @@ function consumeFightEvents() {
 function finishBrawl() {
   const F=C.brawl;if(!F||F.finished||!F.state.done)return;
   F.finished=true;clearInterval(F.timer);C.gs=BRAWL.finishGame(C.gs,F.state);C.phase='over';
+  renderBrawlVitals();
   show('#brawlControls',false);$('#fightMessage').textContent=F.state.winner?'決着！':'相打ち！';
   if(F.authority){publishFight();NET.sendGs(C.gs);}
   banner(F.state.winner?'乱闘決着！':'相打ち！',F.state.winner?'big':'');gameOver();
@@ -2850,9 +2858,17 @@ function updateBrawl(t,dt) {
     u.handL.position.set(f.action==='guard'?-.12:-.3,f.action==='guard'?1.06:.9,f.action==='guard'?.38:.2);
     u.handR.position.set(f.action==='guard'?.12:fist.x,f.action==='guard'?1.06:fist.y,f.action==='guard'?.38:fist.z);
     if(!f.hp)p.position.y=-.15;
-    const cells=$('#fight'+(side==='home'?'Home':'Away')+'Hp').children;
-    for(let i=0;i<5;i++)cells[i].classList.toggle('empty',i>=f.hp);
-    $('#fight'+(side==='home'?'Home':'Away')+'Value').textContent=f.hp+' / 5';
+  }
+  renderBrawlVitals();
+}
+function renderBrawlVitals() {
+  if(!C.brawl)return;
+  for(const side of ['home','away']){
+    const f=C.brawl.state.fighters[side],bar=$('#fight'+(side==='home'?'Home':'Away')+'Hp'),cells=bar.children;
+    for(let i=0;i<BRAWL.HP;i++)cells[i].classList.toggle('empty',i>=f.hp);
+    bar.setAttribute('role','progressbar');bar.setAttribute('aria-label',C.names[side]+'の体力');
+    bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax',String(BRAWL.HP));bar.setAttribute('aria-valuenow',String(f.hp));
+    $('#fight'+(side==='home'?'Home':'Away')+'Value').textContent=f.hp+' / '+BRAWL.HP;
     const breath=$('#fight'+(side==='home'?'Home':'Away')+'Breath'),percent=Math.round(f.breath/BRAWL.BREATH.MAX*100);
     breath.firstElementChild.style.width=percent+'%';breath.setAttribute('aria-valuenow',percent);
     breath.classList.toggle('low',f.breathLocked||percent<=25);
@@ -2900,6 +2916,9 @@ for(const [id,key] of [['fightLeft','left'],['fightRight','right'],['fightGuard'
 // ---- ロビーのボタン ----
 document.querySelectorAll('#innSeg button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#innSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); NET.innings = +b.dataset.v;
+}));
+document.querySelectorAll('#brawlSeg button').forEach(b=>b.addEventListener('click',()=>{
+  NET.brawlEnabled=b.dataset.v==='on';document.querySelectorAll('#brawlSeg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
 $('#createBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => goOnline(newCode(), true)); });
 $('#joinBtn').addEventListener('click', () => {
@@ -3133,6 +3152,7 @@ function openMatchSetup(mode,audible=true) {
   $('#matchSetup').dataset.mode=mode;
   show('#setupStatus',false);
   show('#inningsSetup',mode!=='join');show('#codeEntry',mode==='join');
+  show('#brawlSetup',mode!=='join');show('#roomRulesNote',mode==='join');
   show('#createBtn',mode==='create');show('#joinBtn',mode==='join');show('#cpuBtn',mode==='practice');
   const id=mode==='create'?'#titleCreate':mode==='join'?'#titleJoin':'#titlePractice';
   openTitlePanel('#matchSetup',$(id));

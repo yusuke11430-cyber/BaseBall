@@ -304,13 +304,15 @@ function applyStance(st, smooth = false) {
   const next = { lh: !!st.lh, x: BB.clamp(Number.isFinite(+st.x) ? +st.x : -0.95, -1.45, 1.45), dz: BB.clamp(Number.isFinite(+st.dz) ? +st.dz : 0, -0.9, 0.6), b: !!st.b };
   if (Math.abs(next.x) < 0.55) next.x = next.lh ? 0.95 : -0.95;
   if ((next.x > 0) !== next.lh) next.x = -next.x;
+  const bounds=BB.batCursorBounds(next.x,next.lh);
+  next.cx=BB.clamp(Number.isFinite(st.cx)?st.cx:0,bounds.min,bounds.max);next.cy=BB.clamp(Number.isFinite(st.cy)?st.cy:.85,.34,1.3);
   // 打席の切替は瞬時に。通常の相手の移動だけを補間する。
-  if (smooth && next.lh === VIS.lh) { stanceTarget = next; VIS.b = next.b; return; }
+  if (smooth && next.lh === VIS.lh) { stanceTarget = next; VIS.b = next.b; VIS.cx=next.cx;VIS.cy=next.cy;return; }
   stanceTarget = null; VIS = next; placeStance();
 }
 function placeStance() {
   batter.position.set(VIS.x, 0, -0.05 + VIS.dz);
-  if (C.swingAt === null) { batter.rotation.y = VIS.lh ? -Math.PI / 2 : Math.PI / 2; batPivot.position.copy(batHome(VIS)); batPivot.quaternion.copy(keysOf(VIS)[0][1]); }
+  if (C.swingAt === null && !VIS.b) { batter.rotation.y = VIS.lh ? -Math.PI / 2 : Math.PI / 2; batPivot.position.copy(batHome(VIS)); batPivot.quaternion.copy(keysOf(VIS)[0][1]); }
   plane.constant = -VIS.dz; cursor.position.z = VIS.dz;
 }
 function updateStance(t) {
@@ -655,7 +657,7 @@ const seed = () => (Math.random() * 4294967295) >>> 0;
 function show(el, on) { (typeof el === 'string' ? $(el) : el).hidden = !on; }
 function status(html) { $('#status').innerHTML = html || ''; refreshPanel(); }
 function wantsBrawlAdvice(gs,seat) {
-  if(!gs||gs.over||!['home','away'].includes(seat)||BB.batSide(gs)===seat)return false;
+  if(!gs||gs.over||gs.brawlEnabled===false||!['home','away'].includes(seat)||BB.batSide(gs)===seat)return false;
   const opponent=seat==='home'?'away':'home';
   return gs.inning>=Math.floor(gs.innings*2/3)+1&&gs.score[seat]<gs.score[opponent];
 }
@@ -857,7 +859,7 @@ function onBatMotion(m) {
 function onSw(o) {
   if (!C.pi || o.n !== C.pi.n || o.g !== C.gs.gid || C.out) return;
   C.out = o;
-  if (o.kind === 'hbp') { startBrawl(o); return; }
+  if (o.kind === 'hbp') { if(C.gs.brawlEnabled!==false)startBrawl(o);else resolve();return; }
   if (o.bunt) { C.impactAt = Math.max(now() + 0.02, C.t0 + C.W + C.dur * BB.contactS(o.sz)); C.obsBunt = { x: o.cx, y: o.cy, lh: o.lh, sz: o.sz }; }
   else if (o.swung) {
     C.impactAt = Math.max(now() + 0.02, C.t0 + C.W + C.dur * BB.contactS(o.sz));
@@ -892,7 +894,7 @@ function resolve() {
     const strikeOut = /三振/.test(newGs.msg), walk = /フォア/.test(newGs.msg);
     if (strikeOut || walk || /チェンジ|ゲームセット|点/.test(newGs.msg)) banner(newGs.msg.replace(/ .*/, ''), strikeOut ? 'out' : '');
     call(newGs.msg.split(' ')[0]);
-    call2(strikeOut ? 'k' : walk ? 'walk' : o.kind); if (strikeOut) setTimeout(() => SFX.clap('short'), 700);
+    call2(strikeOut ? 'k' : walk ? 'walk' : o.kind==='hbp'?'deadball':o.kind); if (strikeOut) setTimeout(() => SFX.clap('short'), 700);
     finishPitch(newGs, strikeOut || walk ? 1.9 : 1.1);
   }
 }
@@ -1033,7 +1035,7 @@ function updatePitch(t) {
     const hbp = BB.hitBatter(C.pi, ST, C.bodyS || 0, s); C.bodyS = Math.max(C.bodyS || 0, s);
     if (hbp) {
       const o = { kind: 'hbp', n: C.pi.n, g: C.gs.gid, seed: C.pi.seed, sz: ST.dz, x: ST.x, lh: ST.lh, bodyS: hbp.s };
-      C.out = o; NET.sendSw(o); startBrawl(o); return;
+      C.out = o; NET.sendSw(o); if(C.gs.brawlEnabled!==false)startBrawl(o);else resolve();return;
     }
   }
   // 打者：バントは、球がバットの位置に来た瞬間に判定
@@ -1081,7 +1083,7 @@ function updateSwing(t) {
   const h = handOf(VIS), home = batHome(VIS);
   // バントの構え：バットを寝かせてカーソルの高さ・位置に合わせる
   const mine = role() === 'bat' && ST.b && C.phase !== 'play' && C.phase !== 'call';
-  const ob = !mine && (C.obsBunt || (role() !== 'bat' && VIS.b && C.phase !== 'play') ? (C.obsBunt || { x: 0, y: 0.85 }) : null);
+  const ob = !mine && (C.obsBunt || (role() !== 'bat' && VIS.b && C.phase !== 'play') ? (C.obsBunt || { x: VIS.cx??0, y: VIS.cy??.85, sz: VIS.dz }) : null);
   if (mine || ob) {
     const cx = mine ? C.cur.x : ob.x, cy = mine ? C.cur.y : ob.y;
     batPivot.position.lerp(new THREE.Vector3(cx - h * BB.BUNT.back, cy, (ob && ob.sz != null ? ob.sz : VIS.dz) + 0.04), 0.35);
@@ -1281,6 +1283,7 @@ function setCursor(x, y) {
   const bounds = BB.batCursorBounds(ST.x, ST.lh);
   C.cur.x = BB.clamp(x, bounds.min, bounds.max); C.cur.y = BB.clamp(y, 0.34, 1.3);
   cursor.position.set(C.cur.x, C.cur.y, ST.dz); buntBar.position.set(C.cur.x + handOf(ST) * 0.02, C.cur.y, ST.dz);
+  if(ST.b)sendStance();
 }
 // バント中のバットの当たる範囲
 const buntBar = overlay(new THREE.Mesh(new THREE.PlaneGeometry(BB.BUNT.back + BB.BUNT.tip, BB.BUNT.h * 2), new THREE.MeshBasicMaterial({ color: 0xffb627, opacity: 0.35, side: THREE.DoubleSide })), 6);
@@ -1311,7 +1314,9 @@ function sendStance() {
   const flush = () => {
     stT = 0;
     if (NET.mode !== 'online' || role() !== 'bat' || !C.gs) return;
-    const st = { g: C.gs.gid, lh: ST.lh, x: +ST.x.toFixed(3), dz: +ST.dz.toFixed(3), b: ST.b }, key = JSON.stringify(st);
+    const st = { g: C.gs.gid, lh: ST.lh, x: +ST.x.toFixed(3), dz: +ST.dz.toFixed(3), b: ST.b };
+    if(ST.b){st.cx=+C.cur.x.toFixed(3);st.cy=+C.cur.y.toFixed(3);}
+    const key = JSON.stringify(st);
     if (key === stLast) return;
     stLast = key; stSentAt = performance.now(); NET.sendSt(st);
   };
@@ -1377,7 +1382,7 @@ setInterval(() => {
 }, 16);
 
 // =============== 対戦相手（CPU / オンライン） ===============
-const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3,
+const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3, brawlEnabled:true,
   sendPi() { }, sendSw() { }, sendGs() { }, sendSt() { }, sendBat() { }, sendFight() { }, sendFightInput() { }, swingSeq: 0, oppSt: null };
 
 function cpuPitchSoon() {
@@ -1415,7 +1420,7 @@ function startCPU() {
   NET.mode = 'cpu'; C.seat = 'away'; C.names = { away: nickname(), home: 'CPU' };
   C.looks = { away: chosenAvatar, home: null };
   NET.sendPi = msg => cpuBat(buildPitch(msg)); NET.sendSw = () => { }; NET.sendGs = () => { }; NET.sendSt = () => { }; NET.oppSt = null;
-  C.gs = BB.newGame(NET.innings, 'cpu' + seed()); enterGame();
+  C.gs = BB.newGame(NET.innings, 'cpu' + seed(), NET.brawlEnabled); enterGame();
 }
 function enterGame() {
   clearBrawl();
@@ -1605,7 +1610,7 @@ async function goOnline(code, create) {
   if (token !== C.token || NET.mode !== 'online') return;
   NET.room = joined;
   const me = { v: 1, nick: nickname(), avatar: chosenAvatar ? AVATAR.clean(chosenAvatar) : null, seat: null, pi: null, sw: null, gs: null, sa: null, bf: null, fi: null };
-  if (create) { me.seat = 'home'; me.inn = NET.innings; C.seat = 'home'; }
+  if (create) { me.seat = 'home'; me.inn = NET.innings; me.br=NET.brawlEnabled;C.seat = 'home'; }
   NET.room.presence(me).catch(() => { });
   NET.sendPi = pi => NET.room && NET.room.presence({ pi }).catch(() => { });
   NET.sendSw = sw => NET.room && NET.room.presence({ sw }).catch(() => { });
@@ -1640,7 +1645,7 @@ function assignSeat(final) {
   }
   if (!seat) { if (final) $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています（同じコードで「部屋に入る」を押してもらえばOK）'; return; }
   C.seat = seat;
-  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
+  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings;patch.br=NET.brawlEnabled; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
   NET.room.presence(patch).catch(() => { });
   if (seat === 'spec') $('#waitStatus').innerHTML = '<span class="spin"></span>観戦モードで入りました';
   if (seat === 'home') handlePeers(); // 相手がもう来ていれば、すぐ試合を始める
@@ -1667,14 +1672,14 @@ function handlePeers(peers) {
   if (home && home.presence.inn && C.seat !== 'home') NET.innings = home.presence.inn | 0 || 3;
   // 試合開始：ホームが状態を作る
   if (C.seat === 'home' && opp && !C.gs && !(opp.presence && opp.presence.gs)) {
-    C.gs = BB.newGame(NET.innings, 'g' + seed()); NET.sendGs(C.gs); enterGame();
+    C.gs = BB.newGame(NET.innings, 'g' + seed(), NET.brawlEnabled); NET.sendGs(C.gs); enterGame();
   }
   if (opp && opp.presence) maybeAdopt(opp.presence.gs, opp.presence.seat);
   // 相手（打者）の構え・打席・バントを表示に反映
   const batP = C.gs ? (BB.batSide(C.gs) === 'home' ? home : away) : null;
   if (batP && batP.presence && batP.presence.st && typeof batP.presence.st === 'object' &&
       (!batP.presence.st.g || batP.presence.st.g === C.gs.gid) && role() !== 'bat') {
-    const st = batP.presence.st; NET.oppSt = { lh: !!st.lh, x: +st.x || -0.95, dz: +st.dz || 0, b: !!st.b };
+    const st = batP.presence.st; NET.oppSt = { lh: !!st.lh, x: +st.x || -0.95, dz: +st.dz || 0, b: !!st.b, cx:st.cx,cy:st.cy };
     if (C.phase !== 'play' && C.phase !== 'call' && C.phase !== 'brawl' && !C.brawl) { applyStance(NET.oppSt, true); drawPad(); }
   }
   if (C.seat === 'spec' && home && home.presence) maybeAdopt(home.presence.gs, 'home');
@@ -1705,6 +1710,9 @@ function sanitizePi(pi) {
 // ---- ロビーのボタン ----
 document.querySelectorAll('#innSeg button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#innSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); NET.innings = +b.dataset.v;
+}));
+document.querySelectorAll('#brawlSeg button').forEach(b=>b.addEventListener('click',()=>{
+  NET.brawlEnabled=b.dataset.v==='on';document.querySelectorAll('#brawlSeg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
 $('#createBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => goOnline(newCode(), true)); });
 $('#joinBtn').addEventListener('click', () => {

@@ -10,6 +10,7 @@ for(const mode of ['create','join','practice']){
  ctx.openMatchSetup(mode);assert.equal(get('#matchSetup').hidden,false);assert.equal(get('#home').classList.values.has('has-sheet'),true);
  assert.equal(get('#createBtn').hidden,mode!=='create');assert.equal(get('#joinBtn').hidden,mode!=='join');assert.equal(get('#cpuBtn').hidden,mode!=='practice');
  assert.equal(get('#inningsSetup').hidden,mode==='join');assert.equal(get('#codeEntry').hidden,mode!=='join');
+ assert.equal(get('#brawlSetup').hidden,mode==='join');assert.equal(get('#roomRulesNote').hidden,mode!=='join');
  ctx.closeTitlePanels();assert.equal(get('#matchSetup').hidden,true);assert.equal(get('#home').classList.values.has('has-sheet'),false);
 }
 assert.equal(sounds,3);ctx.openMatchSetup('join',false);assert.equal(sounds,3);
