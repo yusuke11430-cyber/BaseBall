@@ -113,8 +113,9 @@
       <header><h2 id="setupTitle">対戦部屋をつくる</h2><button class="sheet-close" id="setupClose">戻る</button></header>
       <label class="fld" for="nick">プレイヤー名<input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー"></label>
       <div class="fld" id="inningsSetup">イニング数<div class="seg" id="innSeg" role="group" aria-label="イニング数"><button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button></div></div>
+      <div class="fld" id="pitcherModelSetup">投手の高木モデル<div class="seg" id="pitcherModelSeg" role="group" aria-label="投手モデル"><button type="button" data-v="normal" aria-pressed="true">OFF（通常）</button><button type="button" data-v="takagi" aria-pressed="false">ON（高木）</button></div><small id="pitcherModelStatus" role="status">通常アバターで投げます。</small><small>高木モデルでは、利用条件により乱闘はOFFになります。<br>オンラインは部屋作成者の設定が両画面に反映されます。</small></div>
       <div class="fld" id="brawlSetup">乱闘<div class="seg" id="brawlSeg" role="group" aria-label="乱闘の設定"><button type="button" data-v="on" aria-pressed="true">ON</button><button type="button" data-v="off" aria-pressed="false">OFF</button></div><small>OFF：デッドボールは一塁へ進み、試合を続けます。</small></div>
-      <p id="roomRulesNote" hidden>イニング数・乱闘の設定は、部屋を作った人の設定になります。</p>
+      <p id="roomRulesNote" hidden>イニング数・乱闘・投手モデルは、部屋を作った人の設定になります。</p>
       <div class="fld" id="codeEntry" hidden><label for="codeIn">4文字の部屋コード</label><input class="txt code" id="codeIn" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="部屋コード"></div>
       <p class="sheet-error" id="setupStatus" role="alert" hidden></p>
       <p class="sheet-note">次に、この試合で使う選手を選びます。</p>
@@ -126,6 +127,7 @@
       <dl class="howto"><dt>投球</dt><dd>球種とコースを選んでクリック。<kbd>1</kbd>〜<kbd>0</kbd>で球種、<kbd>Q</kbd><kbd>E</kbd>で変化量。</dd><dt>打撃</dt><dd>マウスでミートカーソル、左クリックでスイング。右クリックでバント。</dd><dt>立ち位置</dt><dd><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>で移動。ベースに近づくと外角、離れると内角に対応しやすくなります。<kbd>X</kbd>で打席切替。</dd></dl>
       <p class="note">タッチ操作では、画面のボタンとコース枠を使います。</p>
       <p class="note credit">BGM・応援歌：ニコニ・コモンズ ／ 3D表示：three.js</p>
+      <p class="note credit">VJ-TAKAGI：© YOSHIMOTO KOGYO・SHOWROOM Inc.<br>非公式ファン制作です。<a href="https://campaign.showroom-live.com/takagi/" target="_blank" rel="noopener noreferrer">モデル配布元・利用条件</a></p>
     </section>
   </div>
 

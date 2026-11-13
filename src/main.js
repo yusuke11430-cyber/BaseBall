@@ -272,6 +272,7 @@ const FIELD_POS = { p: [0, -18.44], c: [0, 1.6], b1: [16.5, -24], b2: [7, -33], 
 const fielders = {};
 for (const k in FIELD_POS) { fielders[k] = makePlayer(TEAM.home, { mitt: true }); fielders[k].userData.base = FIELD_POS[k]; }
 const pitcher = fielders.p, catcher = fielders.c;
+/*PITCHER_MODEL*/
 catcher.rotation.y = Math.PI; catcher.scale.set(1, 0.62, 1);
 const batter = makePlayer(TEAM.away);
 batter.position.set(-0.95, 0, -0.05); batter.rotation.y = Math.PI / 2;
@@ -993,6 +994,7 @@ function step() {
   updateStance(t);
   updateBrawl(t, dt);
   if (C.phase === 'pitching' || C.phase === 'call' || (C.phase === 'play' && C.play && C.play.o.kind === 'foul')) updatePitch(t);
+  PITCHER_MODEL.update(t);
   if (C.phase === 'play') updatePlay(t);
   updateSwing(t);
   updateCamera(t, dt);
@@ -1136,7 +1138,7 @@ function updatePlay(t) {
     if (kk >= 1) f.rotation.y = Math.atan2(P.chase ? P.chase.x - f.position.x : 0, P.chase ? P.chase.z - f.position.z : 0);
   }
   // 捕球後のボールは必ずグラブの中（こぼして見えないように）
-  const glove = k => { const f = fielders[k]; f.updateMatrixWorld(true); return f.userData.handL.getWorldPosition(new THREE.Vector3()); };
+  const glove = k => { const f = fielders[k]; f.updateMatrixWorld(true); return k==='p'&&PITCHER_MODEL.isActive()?PITCHER_MODEL.glovePosition(new THREE.Vector3()):f.userData.handL.getWorldPosition(new THREE.Vector3()); };
   const caught = P.chase && e >= (P.chase.pickup ? P.chase.t : P.end);
   if (caught && !P.gloved) { P.gloved = true; if (!P.chase.pickup) SFX.glove(); }
   if (caught) {
@@ -1382,7 +1384,7 @@ setInterval(() => {
 }, 16);
 
 // =============== 対戦相手（CPU / オンライン） ===============
-const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3, brawlEnabled:true,
+const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3, brawlEnabled:true, pitcherModel:'normal',
   sendPi() { }, sendSw() { }, sendGs() { }, sendSt() { }, sendBat() { }, sendFight() { }, sendFightInput() { }, swingSeq: 0, oppSt: null };
 
 function cpuPitchSoon() {
@@ -1420,7 +1422,7 @@ function startCPU() {
   NET.mode = 'cpu'; C.seat = 'away'; C.names = { away: nickname(), home: 'CPU' };
   C.looks = { away: chosenAvatar, home: null };
   NET.sendPi = msg => cpuBat(buildPitch(msg)); NET.sendSw = () => { }; NET.sendGs = () => { }; NET.sendSt = () => { }; NET.oppSt = null;
-  C.gs = BB.newGame(NET.innings, 'cpu' + seed(), NET.brawlEnabled); enterGame();
+  C.gs = BB.newGame(NET.innings, 'cpu' + seed(), NET.brawlEnabled, NET.pitcherModel); enterGame();
 }
 function enterGame() {
   clearBrawl();
@@ -1610,7 +1612,7 @@ async function goOnline(code, create) {
   if (token !== C.token || NET.mode !== 'online') return;
   NET.room = joined;
   const me = { v: 1, nick: nickname(), avatar: chosenAvatar ? AVATAR.clean(chosenAvatar) : null, seat: null, pi: null, sw: null, gs: null, sa: null, bf: null, fi: null };
-  if (create) { me.seat = 'home'; me.inn = NET.innings; me.br=NET.brawlEnabled;C.seat = 'home'; }
+  if (create) { me.seat = 'home'; me.inn = NET.innings; me.br=NET.brawlEnabled;me.pm=NET.pitcherModel;C.seat = 'home'; }
   NET.room.presence(me).catch(() => { });
   NET.sendPi = pi => NET.room && NET.room.presence({ pi }).catch(() => { });
   NET.sendSw = sw => NET.room && NET.room.presence({ sw }).catch(() => { });
@@ -1645,7 +1647,7 @@ function assignSeat(final) {
   }
   if (!seat) { if (final) $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています（同じコードで「部屋に入る」を押してもらえばOK）'; return; }
   C.seat = seat;
-  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings;patch.br=NET.brawlEnabled; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
+  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings;patch.br=NET.brawlEnabled;patch.pm=NET.pitcherModel; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
   NET.room.presence(patch).catch(() => { });
   if (seat === 'spec') $('#waitStatus').innerHTML = '<span class="spin"></span>観戦モードで入りました';
   if (seat === 'home') handlePeers(); // 相手がもう来ていれば、すぐ試合を始める
@@ -1656,6 +1658,7 @@ function maybeAdopt(g, fromSeat) {
   if (!fresh) return;
   const first = !C.gs || C.phase === 'lobby' || C.phase === 'over';
   C.gs = clone(g); NET.innings = g.innings;
+  if(C.gs.pitcherModel==='takagi')C.gs.brawlEnabled=false;
   if (first) enterGame(); else nextPitch();
 }
 function handlePeers(peers) {
@@ -1672,7 +1675,7 @@ function handlePeers(peers) {
   if (home && home.presence.inn && C.seat !== 'home') NET.innings = home.presence.inn | 0 || 3;
   // 試合開始：ホームが状態を作る
   if (C.seat === 'home' && opp && !C.gs && !(opp.presence && opp.presence.gs)) {
-    C.gs = BB.newGame(NET.innings, 'g' + seed(), NET.brawlEnabled); NET.sendGs(C.gs); enterGame();
+    C.gs = BB.newGame(NET.innings, 'g' + seed(), NET.brawlEnabled, NET.pitcherModel); NET.sendGs(C.gs); enterGame();
   }
   if (opp && opp.presence) maybeAdopt(opp.presence.gs, opp.presence.seat);
   // 相手（打者）の構え・打席・バントを表示に反映
@@ -1712,6 +1715,7 @@ document.querySelectorAll('#innSeg button').forEach(b => b.addEventListener('cli
   document.querySelectorAll('#innSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); NET.innings = +b.dataset.v;
 }));
 document.querySelectorAll('#brawlSeg button').forEach(b=>b.addEventListener('click',()=>{
+  if(NET.pitcherModel==='takagi')return;
   NET.brawlEnabled=b.dataset.v==='on';document.querySelectorAll('#brawlSeg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
 $('#createBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => goOnline(newCode(), true)); });

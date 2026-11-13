@@ -28,6 +28,7 @@ button,input{font:inherit;color:inherit}button{cursor:pointer}button:focus-visib
 .sta{display:flex;align-items:center;gap:9px;padding:5px 9px;font-size:11px;min-width:210px}.sta .lbl{white-space:nowrap;max-width:10em;overflow:hidden;text-overflow:ellipsis}.sta .bar{flex:1;min-width:55px;height:5px;border-radius:1px;background:#d7ddd5;overflow:hidden}.sta .bar i{display:block;width:100%;height:100%;background:#6d996d;transition:width .25s}.sta b{min-width:2em;text-align:right;font:700 14px var(--f-display);font-variant-numeric:tabular-nums}
 .speed{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 128px);transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:20px;max-width:calc(100% - 24px);padding:8px 18px;z-index:5;pointer-events:none;font:700 32px/1.1 var(--f-display);border:0;border-left:3px solid var(--sun);background:var(--ink);color:var(--paper)}
 .speed .pt{font:700 15px var(--f-body);min-width:0;overflow-wrap:anywhere}.speed .velocity{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--sun)}.speed small{font:500 11px var(--f-body);margin-left:5px;color:#d3ded8}
+.vrm-pitcher .speed{left:auto;right:16px;transform:none}
 .banner{position:fixed;left:50%;top:34%;transform:translate(-50%,-40%);opacity:0;z-index:6;pointer-events:none;font:800 clamp(30px,6vw,64px)/1.2 var(--f-body);letter-spacing:.025em;color:#fffdf5;white-space:nowrap;text-shadow:0 2px 8px #112b3970;transition:transform .18s ease-out,opacity .18s}
 .banner.show{opacity:1;transform:translate(-50%,-50%)}.banner.big{color:#ffe3a8}.banner.out{color:#fff3eb}
 .call{position:fixed;left:50%;top:58%;transform:translateX(-50%);padding:7px 20px;z-index:6;pointer-events:none;opacity:0;transition:opacity .15s;font:700 18px var(--f-body);border-left:3px solid var(--sun)}.call.show{opacity:1}
@@ -226,8 +227,9 @@ body>.soundbar.open .vols{display:grid;background:var(--paper);border:1px solid 
       <header><h2 id="setupTitle">対戦部屋をつくる</h2><button class="sheet-close" id="setupClose">戻る</button></header>
       <label class="fld" for="nick">プレイヤー名<input class="txt" id="nick" maxlength="10" autocomplete="off" value="プレイヤー"></label>
       <div class="fld" id="inningsSetup">イニング数<div class="seg" id="innSeg" role="group" aria-label="イニング数"><button data-v="1">1回</button><button data-v="3" aria-pressed="true">3回</button><button data-v="5">5回</button><button data-v="9">9回</button></div></div>
+      <div class="fld" id="pitcherModelSetup">投手の高木モデル<div class="seg" id="pitcherModelSeg" role="group" aria-label="投手モデル"><button type="button" data-v="normal" aria-pressed="true">OFF（通常）</button><button type="button" data-v="takagi" aria-pressed="false">ON（高木）</button></div><small id="pitcherModelStatus" role="status">通常アバターで投げます。</small><small>高木モデルでは、利用条件により乱闘はOFFになります。<br>オンラインは部屋作成者の設定が両画面に反映されます。</small></div>
       <div class="fld" id="brawlSetup">乱闘<div class="seg" id="brawlSeg" role="group" aria-label="乱闘の設定"><button type="button" data-v="on" aria-pressed="true">ON</button><button type="button" data-v="off" aria-pressed="false">OFF</button></div><small>OFF：デッドボールは一塁へ進み、試合を続けます。</small></div>
-      <p id="roomRulesNote" hidden>イニング数・乱闘の設定は、部屋を作った人の設定になります。</p>
+      <p id="roomRulesNote" hidden>イニング数・乱闘・投手モデルは、部屋を作った人の設定になります。</p>
       <div class="fld" id="codeEntry" hidden><label for="codeIn">4文字の部屋コード</label><input class="txt code" id="codeIn" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="部屋コード"></div>
       <p class="sheet-error" id="setupStatus" role="alert" hidden></p>
       <p class="sheet-note">次に、この試合で使う選手を選びます。</p>
@@ -239,6 +241,7 @@ body>.soundbar.open .vols{display:grid;background:var(--paper);border:1px solid 
       <dl class="howto"><dt>投球</dt><dd>球種とコースを選んでクリック。<kbd>1</kbd>〜<kbd>0</kbd>で球種、<kbd>Q</kbd><kbd>E</kbd>で変化量。</dd><dt>打撃</dt><dd>マウスでミートカーソル、左クリックでスイング。右クリックでバント。</dd><dt>立ち位置</dt><dd><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>で移動。ベースに近づくと外角、離れると内角に対応しやすくなります。<kbd>X</kbd>で打席切替。</dd></dl>
       <p class="note">タッチ操作では、画面のボタンとコース枠を使います。</p>
       <p class="note credit">BGM・応援歌：ニコニ・コモンズ ／ 3D表示：three.js</p>
+      <p class="note credit">VJ-TAKAGI：© YOSHIMOTO KOGYO・SHOWROOM Inc.<br>非公式ファン制作です。<a href="https://campaign.showroom-live.com/takagi/" target="_blank" rel="noopener noreferrer">モデル配布元・利用条件</a></p>
     </section>
   </div>
 
@@ -583,9 +586,10 @@ const BB = (() => {
     return x < 0.88 ? 'double' : 'triple';
   }
 
-  function newGame(innings, gid, brawlEnabled = true) {
+  function newGame(innings, gid, brawlEnabled = true, pitcherModel = 'normal') {
+    pitcherModel = pitcherModel === 'takagi' ? 'takagi' : 'normal';
     return { gid, n: 0, inning: 1, top: true, outs: 0, b: 0, s: 0, bases: [0, 0, 0],
-      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, brawlEnabled: brawlEnabled !== false, over: false, msg: 'プレイボール!' };
+      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, pitcherModel, brawlEnabled: brawlEnabled !== false && pitcherModel !== 'takagi', over: false, msg: 'プレイボール!' };
   }
   const batSide = gs => gs.top ? 'away' : 'home';
 
@@ -1295,6 +1299,96 @@ const FIELD_POS = { p: [0, -18.44], c: [0, 1.6], b1: [16.5, -24], b2: [7, -33], 
 const fielders = {};
 for (const k in FIELD_POS) { fielders[k] = makePlayer(TEAM.home, { mitt: true }); fielders[k].userData.base = FIELD_POS[k]; }
 const pitcher = fielders.p, catcher = fielders.c;
+// Supplied VRM0, rendered through its glTF skin + humanoid bone mapping.
+// No second Three.js engine, spring physics or expression buffers.
+const PITCHER_MODEL = (() => {
+  const normal=Array.from(pitcher.children),world=new THREE.Vector3(),a=new THREE.Vector3(),b=new THREE.Vector3(),v=new THREE.Vector3();
+  const q=new THREE.Quaternion(),parentQ=new THREE.Quaternion(),localQ=new THREE.Quaternion();
+  let root=null,bones={},rest={},job=null,loaderJob=null,ballInHand=null,gloveMesh=null,shown=false,lastX=0,lastZ=-18.44,retryAt=0;
+  const controls=['hips','spine','chest','upperChest','neck','head','leftUpperArm','leftLowerArm','rightUpperArm','rightLowerArm','leftUpperLeg','leftLowerLeg','rightUpperLeg','rightLowerLeg'];
+  function loader(){
+    if(THREE.GLTFLoader)return Promise.resolve();
+    if(loaderJob)return loaderJob;
+    loaderJob=new Promise((resolve,reject)=>{
+      const script=document.createElement('script'),timer=setTimeout(()=>{script.remove();reject(Error('loader timeout'));},15000);
+      script.src=new URL('vendor/GLTFLoader-r128.js',document.baseURI).href;script.crossOrigin='anonymous';
+      script.onload=()=>{clearTimeout(timer);resolve();};script.onerror=()=>{clearTimeout(timer);script.remove();reject(Error('loader unavailable'));};document.head.appendChild(script);
+    }).catch(error=>{loaderJob=null;throw error;});return loaderJob;
+  }
+  async function load(){
+    if(root)return root;if(job)return job;
+    job=(async()=>{
+      await loader();
+      const response=await fetch(new URL('models/vj-takagi.vrm',document.baseURI),{signal:AbortSignal.timeout(20000)});
+      if(!response.ok)throw Error('model unavailable');
+      const bytes=await response.arrayBuffer();
+      const gltf=await new Promise((resolve,reject)=>new THREE.GLTFLoader().parse(bytes,'',resolve,reject));
+      const source=gltf.parser.json.extensions.VRM;
+      const pairs=await Promise.all(source.humanoid.humanBones.map(async item=>[item.bone,await gltf.parser.getDependency('node',item.node)]));
+      bones=Object.fromEntries(pairs);
+      if(!['leftUpperArm','leftLowerArm','leftHand','rightUpperArm','rightLowerArm','rightHand','hips'].every(name=>bones[name]))throw Error('humanoid bones unavailable');
+      root=new THREE.Group();root.name='vjTakagiModel';root.add(gltf.scene);
+      // VRM0 faces -Z; game pitchers face the plate at +Z.
+      gltf.scene.rotation.y=Math.PI;gltf.scene.updateMatrixWorld(true);
+      const box=new THREE.Box3().setFromObject(gltf.scene),height=box.max.y-box.min.y,scale=1.8/height;
+      root.scale.setScalar(scale);gltf.scene.position.y=-box.min.y;
+      for(const name of controls)if(bones[name])rest[name]=bones[name].quaternion.clone();
+      gltf.scene.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=false;node.frustumCulled=false;}});
+      // A small glove and held ball are the only extra meshes.
+      const glove=new THREE.Mesh(sphG,M('#945b32'));glove.scale.set(.12,.14,.08);glove.position.set(0,-.025,-.02);bones.leftHand.add(glove);gloveMesh=glove;
+      ballInHand=new THREE.Mesh(sphG,M('#ffffff'));ballInHand.scale.setScalar(.075/scale);bones.rightHand.add(ballInHand);
+      root.visible=false;pitcher.add(root);return root;
+    })().catch(error=>{job=null;retryAt=now()+30;throw error;});return job;
+  }
+  function display(active){
+    if(shown===active)return;shown=active;
+    document.body.classList.toggle('vrm-pitcher',active);
+    normal.forEach(node=>{node.visible=!active;});if(root)root.visible=active;
+  }
+  function rotate(name,x=0,y=0,z=0){if(bones[name])bones[name].rotation.set(x,y,z);}
+  // Rotate a 2-bone arm toward a world-space target, preserving the skin rig.
+  function arm(side,target){
+    const end=bones[side+'Hand'],chain=[bones[side+'LowerArm'],bones[side+'UpperArm']];
+    for(let pass=0;pass<4;pass++)for(const joint of chain){
+      joint.getWorldPosition(v);end.getWorldPosition(a);a.sub(v);b.copy(target).sub(v);
+      if(a.lengthSq()<1e-8||b.lengthSq()<1e-8)continue;
+      q.setFromUnitVectors(a.normalize(),b.normalize());joint.parent.getWorldQuaternion(parentQ);
+      localQ.copy(parentQ).invert().multiply(q).multiply(parentQ);joint.quaternion.premultiply(localQ);
+    }
+  }
+  function target(side,x,y,z){world.set(x,y,z);pitcher.localToWorld(world);arm(side,world);}
+  function update(t){
+    const wanted=!!C.gs&&C.gs.pitcherModel==='takagi'&&!C.brawl&&C.phase!=='lobby';
+    if(wanted&&!root&&!job&&t>=retryAt)load().catch(()=>{});
+    display(wanted&&!!root);if(!shown)return;
+    for(const name of controls)if(bones[name])bones[name].quaternion.copy(rest[name]);
+    const elapsed=C.pi?t-C.t0:Infinity,u=C.W>0?elapsed/C.W:Infinity;
+    const throwing=C.phase==='pitching'||C.phase==='call';
+    const wind=throwing&&u<1.55, lift=wind?Math.sin(Math.min(1,u/.55)*Math.PI/2)*(u<.55?1:Math.max(0,1-(u-.55)/.45)):0;
+    const lunge=wind?ease(BB.clamp((u-.55)/.45,0,1)):0;
+    if(wind&&u<1){pitcher.rotation.set(.16*lunge,-.3*lift,0);pitcher.position.z=-18.44+.55*lunge;}
+    else if(throwing&&C.pi){const recover=BB.clamp((elapsed-C.W)/.6,0,1);pitcher.rotation.set(.16*(1-recover),0,0);pitcher.position.z=-18.44+.55*(1-recover);}
+    const moving=C.phase==='play'&&Math.hypot(pitcher.position.x-lastX,pitcher.position.z-lastZ)>.002;
+    lastX=pitcher.position.x;lastZ=pitcher.position.z;
+    const stride=moving?Math.sin(t*15)*.5:0;
+    rotate('leftUpperLeg',-lift*1.15+stride);rotate('leftLowerLeg',lift*1.5+Math.max(0,-stride)*.6);
+    rotate('rightUpperLeg',-stride);rotate('rightLowerLeg',Math.max(0,stride)*.6);
+    rotate('chest',.08*lunge+.008*Math.sin(t*2),-.18*lift,0);rotate('head',-.03,0,0);
+    if(wind){
+      if(u<=.55)target('right',-.15-.2*lift,1.15+.4*lift,.18-.35*lift);
+      else if(u<1){
+        const release=BB.pitchPos(C.pi,0);pitcher.updateMatrixWorld(true);world.set(release.x,release.y,release.z);pitcher.worldToLocal(world);
+        const k=ease(BB.clamp((u-.55)/.45,0,1)),x=lerp(-.35,world.x,k),y=lerp(1.55,world.y,k),z=lerp(-.17,world.z,k);target('right',x,y,z);
+      }else{const k=BB.clamp((u-1)/.5,0,1),release=BB.pitchPos(C.pi,0);pitcher.updateMatrixWorld(true);world.set(release.x,release.y,release.z);pitcher.worldToLocal(world);const x=lerp(world.x,-.45,k),y=lerp(world.y,.95,k),z=lerp(world.z,.35,k);target('right',x,y,z);}
+      target('left',.13,1.13,.22);
+    }else{
+      target('right',-.22,1.02,.18);target('left',.22,1.05,.2);
+    }
+    ballInHand.visible=throwing&&elapsed>=0&&elapsed<C.W;
+  }
+  return {load,update,isActive:()=>shown,isLoaded:()=>!!root,glovePosition:out=>gloveMesh.getWorldPosition(out)};
+})();
+
 catcher.rotation.y = Math.PI; catcher.scale.set(1, 0.62, 1);
 const batter = makePlayer(TEAM.away);
 batter.position.set(-0.95, 0, -0.05); batter.rotation.y = Math.PI / 2;
@@ -2016,6 +2110,7 @@ function step() {
   updateStance(t);
   updateBrawl(t, dt);
   if (C.phase === 'pitching' || C.phase === 'call' || (C.phase === 'play' && C.play && C.play.o.kind === 'foul')) updatePitch(t);
+  PITCHER_MODEL.update(t);
   if (C.phase === 'play') updatePlay(t);
   updateSwing(t);
   updateCamera(t, dt);
@@ -2159,7 +2254,7 @@ function updatePlay(t) {
     if (kk >= 1) f.rotation.y = Math.atan2(P.chase ? P.chase.x - f.position.x : 0, P.chase ? P.chase.z - f.position.z : 0);
   }
   // 捕球後のボールは必ずグラブの中（こぼして見えないように）
-  const glove = k => { const f = fielders[k]; f.updateMatrixWorld(true); return f.userData.handL.getWorldPosition(new THREE.Vector3()); };
+  const glove = k => { const f = fielders[k]; f.updateMatrixWorld(true); return k==='p'&&PITCHER_MODEL.isActive()?PITCHER_MODEL.glovePosition(new THREE.Vector3()):f.userData.handL.getWorldPosition(new THREE.Vector3()); };
   const caught = P.chase && e >= (P.chase.pickup ? P.chase.t : P.end);
   if (caught && !P.gloved) { P.gloved = true; if (!P.chase.pickup) SFX.glove(); }
   if (caught) {
@@ -2405,7 +2500,7 @@ setInterval(() => {
 }, 16);
 
 // =============== 対戦相手（CPU / オンライン） ===============
-const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3, brawlEnabled:true,
+const NET = { mode: null, room: null, seen: new Set(), unsub: null, joinTimer: 0, opp: null, create: false, code: '', innings: 3, brawlEnabled:true, pitcherModel:'normal',
   sendPi() { }, sendSw() { }, sendGs() { }, sendSt() { }, sendBat() { }, sendFight() { }, sendFightInput() { }, swingSeq: 0, oppSt: null };
 
 function cpuPitchSoon() {
@@ -2443,7 +2538,7 @@ function startCPU() {
   NET.mode = 'cpu'; C.seat = 'away'; C.names = { away: nickname(), home: 'CPU' };
   C.looks = { away: chosenAvatar, home: null };
   NET.sendPi = msg => cpuBat(buildPitch(msg)); NET.sendSw = () => { }; NET.sendGs = () => { }; NET.sendSt = () => { }; NET.oppSt = null;
-  C.gs = BB.newGame(NET.innings, 'cpu' + seed(), NET.brawlEnabled); enterGame();
+  C.gs = BB.newGame(NET.innings, 'cpu' + seed(), NET.brawlEnabled, NET.pitcherModel); enterGame();
 }
 function enterGame() {
   clearBrawl();
@@ -2633,7 +2728,7 @@ async function goOnline(code, create) {
   if (token !== C.token || NET.mode !== 'online') return;
   NET.room = joined;
   const me = { v: 1, nick: nickname(), avatar: chosenAvatar ? AVATAR.clean(chosenAvatar) : null, seat: null, pi: null, sw: null, gs: null, sa: null, bf: null, fi: null };
-  if (create) { me.seat = 'home'; me.inn = NET.innings; me.br=NET.brawlEnabled;C.seat = 'home'; }
+  if (create) { me.seat = 'home'; me.inn = NET.innings; me.br=NET.brawlEnabled;me.pm=NET.pitcherModel;C.seat = 'home'; }
   NET.room.presence(me).catch(() => { });
   NET.sendPi = pi => NET.room && NET.room.presence({ pi }).catch(() => { });
   NET.sendSw = sw => NET.room && NET.room.presence({ sw }).catch(() => { });
@@ -2668,7 +2763,7 @@ function assignSeat(final) {
   }
   if (!seat) { if (final) $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています（同じコードで「部屋に入る」を押してもらえばOK）'; return; }
   C.seat = seat;
-  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings;patch.br=NET.brawlEnabled; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
+  const patch = { seat }; if (seat === 'home') { patch.inn = NET.innings;patch.br=NET.brawlEnabled;patch.pm=NET.pitcherModel; $('#waitStatus').innerHTML = '<span class="spin"></span>相手を待っています'; }
   NET.room.presence(patch).catch(() => { });
   if (seat === 'spec') $('#waitStatus').innerHTML = '<span class="spin"></span>観戦モードで入りました';
   if (seat === 'home') handlePeers(); // 相手がもう来ていれば、すぐ試合を始める
@@ -2679,6 +2774,7 @@ function maybeAdopt(g, fromSeat) {
   if (!fresh) return;
   const first = !C.gs || C.phase === 'lobby' || C.phase === 'over';
   C.gs = clone(g); NET.innings = g.innings;
+  if(C.gs.pitcherModel==='takagi')C.gs.brawlEnabled=false;
   if (first) enterGame(); else nextPitch();
 }
 function handlePeers(peers) {
@@ -2695,7 +2791,7 @@ function handlePeers(peers) {
   if (home && home.presence.inn && C.seat !== 'home') NET.innings = home.presence.inn | 0 || 3;
   // 試合開始：ホームが状態を作る
   if (C.seat === 'home' && opp && !C.gs && !(opp.presence && opp.presence.gs)) {
-    C.gs = BB.newGame(NET.innings, 'g' + seed(), NET.brawlEnabled); NET.sendGs(C.gs); enterGame();
+    C.gs = BB.newGame(NET.innings, 'g' + seed(), NET.brawlEnabled, NET.pitcherModel); NET.sendGs(C.gs); enterGame();
   }
   if (opp && opp.presence) maybeAdopt(opp.presence.gs, opp.presence.seat);
   // 相手（打者）の構え・打席・バントを表示に反映
@@ -2918,6 +3014,7 @@ document.querySelectorAll('#innSeg button').forEach(b => b.addEventListener('cli
   document.querySelectorAll('#innSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); NET.innings = +b.dataset.v;
 }));
 document.querySelectorAll('#brawlSeg button').forEach(b=>b.addEventListener('click',()=>{
+  if(NET.pitcherModel==='takagi')return;
   NET.brawlEnabled=b.dataset.v==='on';document.querySelectorAll('#brawlSeg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
 $('#createBtn').addEventListener('click', () => { audio(); SFX.select(); openCharacterStudio(() => goOnline(newCode(), true)); });
@@ -3153,6 +3250,7 @@ function openMatchSetup(mode,audible=true) {
   show('#setupStatus',false);
   show('#inningsSetup',mode!=='join');show('#codeEntry',mode==='join');
   show('#brawlSetup',mode!=='join');show('#roomRulesNote',mode==='join');
+  show('#pitcherModelSetup',mode!=='join');
   show('#createBtn',mode==='create');show('#joinBtn',mode==='join');show('#cpuBtn',mode==='practice');
   const id=mode==='create'?'#titleCreate':mode==='join'?'#titleJoin':'#titlePractice';
   openTitlePanel('#matchSetup',$(id));
@@ -3167,6 +3265,20 @@ function setTitlePlayer() {
   batPivot.visible=batRunner.visible=false;runners.forEach(p=>p.visible=false);
 }
 for(const [id,mode] of [['titleCreate','create'],['titleJoin','join'],['titlePractice','practice']])$('#'+id).addEventListener('click',()=>openMatchSetup(mode));
+let brawlBeforeModel=true;
+function choosePitcherModel(value){
+  const next=value==='takagi'?'takagi':'normal',previous=NET.pitcherModel;
+  if(previous!=='takagi'&&next==='takagi')brawlBeforeModel=NET.brawlEnabled;
+  NET.pitcherModel=next;
+  if(next==='takagi')NET.brawlEnabled=false;else if(previous==='takagi')NET.brawlEnabled=brawlBeforeModel;
+  document.querySelectorAll('#pitcherModelSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===next)));
+  document.querySelectorAll('#brawlSeg button').forEach(b=>{b.disabled=next==='takagi';b.setAttribute('aria-pressed',String((b.dataset.v==='on')===NET.brawlEnabled));});
+  const status=$('#pitcherModelStatus');
+  if(next==='normal'){status.textContent='通常アバターで投げます。';return;}
+  status.textContent='高木モデルを読み込んでいます…';
+  PITCHER_MODEL.load().then(()=>{if(NET.pitcherModel==='takagi')status.textContent='高木モデル・投球モーションの準備OK';}).catch(()=>{if(NET.pitcherModel==='takagi')status.textContent='モデルを読み込めませんでした。通常モデルで試合を続けられます。選び直すと再試行します。';});
+}
+document.querySelectorAll('#pitcherModelSeg button').forEach(b=>b.addEventListener('click',()=>choosePitcherModel(b.dataset.v)));
 $('#titleSettingsBtn').addEventListener('click',()=>{audio();SFX.select();openTitlePanel('#titleSettings',$('#titleSettingsBtn'));});
 $('#titleHelpBtn').addEventListener('click',()=>{audio();SFX.select();openTitlePanel('#titleHelp',$('#titleHelpBtn'));});
 for(const id of ['setupClose','settingsClose','helpClose'])$('#'+id).addEventListener('click',()=>closeTitlePanels());

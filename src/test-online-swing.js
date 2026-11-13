@@ -56,3 +56,6 @@ ctx.applyStance=(st,smooth)=>remoteStance={...st,smooth};
 for(const phase of ['aim','pitching']){C.phase=phase;peers[0].presence.st={g:C.gs.gid,lh:true,x:1.1,dz:-.4,b:true,cx:-.2,cy:1.1};ctx.handlePeers();assert.equal(remoteStance.b,true);assert.equal(remoteStance.cx,-.2);assert.equal(remoteStance.cy,1.1);assert.equal(remoteStance.smooth,true);}
 peers[0].presence.st.b=false;ctx.handlePeers();assert.equal(remoteStance.b,false);
 console.log('Room rules and remote bunt: host setting in shared state and live bunt cursor/release presence passed');
+// 高木モデルも同じ共有ゲーム状態へ固定され、乱闘は必ずOFFになる。
+C.gs=null;C.seat='home';C.phase='aim';NET.pitcherModel='takagi';NET.brawlEnabled=true;peers=[{presence:{seat:'away',nick:'guest'}}];ctx.handlePeers();
+assert.equal(initialGame.pitcherModel,'takagi');assert.equal(initialGame.brawlEnabled,false);assert.equal(JSON.parse(JSON.stringify(C.gs)).pitcherModel,'takagi');

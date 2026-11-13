@@ -22,6 +22,7 @@ function openMatchSetup(mode,audible=true) {
   show('#setupStatus',false);
   show('#inningsSetup',mode!=='join');show('#codeEntry',mode==='join');
   show('#brawlSetup',mode!=='join');show('#roomRulesNote',mode==='join');
+  show('#pitcherModelSetup',mode!=='join');
   show('#createBtn',mode==='create');show('#joinBtn',mode==='join');show('#cpuBtn',mode==='practice');
   const id=mode==='create'?'#titleCreate':mode==='join'?'#titleJoin':'#titlePractice';
   openTitlePanel('#matchSetup',$(id));
@@ -36,6 +37,20 @@ function setTitlePlayer() {
   batPivot.visible=batRunner.visible=false;runners.forEach(p=>p.visible=false);
 }
 for(const [id,mode] of [['titleCreate','create'],['titleJoin','join'],['titlePractice','practice']])$('#'+id).addEventListener('click',()=>openMatchSetup(mode));
+let brawlBeforeModel=true;
+function choosePitcherModel(value){
+  const next=value==='takagi'?'takagi':'normal',previous=NET.pitcherModel;
+  if(previous!=='takagi'&&next==='takagi')brawlBeforeModel=NET.brawlEnabled;
+  NET.pitcherModel=next;
+  if(next==='takagi')NET.brawlEnabled=false;else if(previous==='takagi')NET.brawlEnabled=brawlBeforeModel;
+  document.querySelectorAll('#pitcherModelSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===next)));
+  document.querySelectorAll('#brawlSeg button').forEach(b=>{b.disabled=next==='takagi';b.setAttribute('aria-pressed',String((b.dataset.v==='on')===NET.brawlEnabled));});
+  const status=$('#pitcherModelStatus');
+  if(next==='normal'){status.textContent='通常アバターで投げます。';return;}
+  status.textContent='高木モデルを読み込んでいます…';
+  PITCHER_MODEL.load().then(()=>{if(NET.pitcherModel==='takagi')status.textContent='高木モデル・投球モーションの準備OK';}).catch(()=>{if(NET.pitcherModel==='takagi')status.textContent='モデルを読み込めませんでした。通常モデルで試合を続けられます。選び直すと再試行します。';});
+}
+document.querySelectorAll('#pitcherModelSeg button').forEach(b=>b.addEventListener('click',()=>choosePitcherModel(b.dataset.v)));
 $('#titleSettingsBtn').addEventListener('click',()=>{audio();SFX.select();openTitlePanel('#titleSettings',$('#titleSettingsBtn'));});
 $('#titleHelpBtn').addEventListener('click',()=>{audio();SFX.select();openTitlePanel('#titleHelp',$('#titleHelpBtn'));});
 for(const id of ['setupClose','settingsClose','helpClose'])$('#'+id).addEventListener('click',()=>closeTitlePanels());

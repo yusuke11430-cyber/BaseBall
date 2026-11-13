@@ -298,9 +298,10 @@ const BB = (() => {
     return x < 0.88 ? 'double' : 'triple';
   }
 
-  function newGame(innings, gid, brawlEnabled = true) {
+  function newGame(innings, gid, brawlEnabled = true, pitcherModel = 'normal') {
+    pitcherModel = pitcherModel === 'takagi' ? 'takagi' : 'normal';
     return { gid, n: 0, inning: 1, top: true, outs: 0, b: 0, s: 0, bases: [0, 0, 0],
-      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, brawlEnabled: brawlEnabled !== false, over: false, msg: 'プレイボール!' };
+      score: { away: 0, home: 0 }, sta: { away: STA_MAX, home: STA_MAX }, lines: { away: [0], home: [] }, innings, pitcherModel, brawlEnabled: brawlEnabled !== false && pitcherModel !== 'takagi', over: false, msg: 'プレイボール!' };
   }
   const batSide = gs => gs.top ? 'away' : 'home';
 

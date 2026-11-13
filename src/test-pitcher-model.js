@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),BB=require('./logic');
+const raw=fs.readFileSync(__dirname+'/../docs/models/vj-takagi.vrm');
+assert.equal(raw.readUInt32LE(0),0x46546c67);assert.equal(raw.readUInt32LE(8),raw.length);assert.ok(raw.length<2*1024*1024);
+const size=raw.readUInt32LE(12),g=JSON.parse(raw.subarray(20,20+size)),binLength=raw.readUInt32LE(20+size);
+for(const v of g.bufferViews)assert.ok(v.byteOffset%4===0&&v.byteOffset+v.byteLength<=binLength);
+for(const image of g.images)assert.ok(!image.uri&&image.mimeType==='image/jpeg');
+assert.equal(g.extensions.VRM.meta.violentUssageName,'Disallow');
+for(const bone of g.extensions.VRM.humanoid.humanBones)assert.ok(g.nodes[bone.node]);
+assert.ok(!g.meshes.some(m=>m.primitives.some(p=>p.targets)));
+assert.equal(BB.newGame(3,'model',true,'takagi').brawlEnabled,false);
+assert.equal(BB.newGame(3,'model',true,'unknown').pitcherModel,'normal');
+const modelSource=fs.readFileSync(__dirname+'/pitcher-model.js','utf8');
+const inactive=vm.createContext({THREE:{Vector3:class{},Quaternion:class{}},pitcher:{children:[]},C:{gs:BB.newGame(3,'normal'),phase:'aim'},now:()=>0,fetch(){throw Error('Normal avatar must not fetch VRM assets');}});
+vm.runInContext(modelSource+';result=PITCHER_MODEL;',inactive);for(let i=0;i<60;i++)inactive.result.update(i/60);
+assert.equal(inactive.result.isLoaded(),false);assert.equal(inactive.result.isActive(),false);
+const menu=fs.readFileSync(__dirname+'/title-menu.js','utf8'),nodes={};
+const buttons=[{dataset:{v:'on'}},{dataset:{v:'off'}}],models=[{dataset:{v:'normal'}},{dataset:{v:'takagi'}}];
+for(const b of [...buttons,...models])b.setAttribute=function(k,v){this[k]=v;};
+let loads=0;const ctx=vm.createContext({NET:{pitcherModel:'normal',brawlEnabled:true},PITCHER_MODEL:{load:()=>{loads++;return Promise.resolve();}},document:{querySelectorAll:s=>s==='#brawlSeg button'?buttons:models},$:id=>nodes[id]||(nodes[id]={})});
+vm.runInContext(menu.slice(menu.indexOf('let brawlBeforeModel='),menu.indexOf("document.querySelectorAll('#pitcherModelSeg button').forEach(b=>b.addEventListener")),ctx);
+for(const previous of [true,false]){ctx.NET.brawlEnabled=previous;ctx.choosePitcherModel('takagi');assert.equal(ctx.NET.brawlEnabled,false);assert.ok(buttons.every(b=>b.disabled));assert.equal(models[1]['aria-pressed'],'true');ctx.choosePitcherModel('normal');assert.equal(ctx.NET.brawlEnabled,previous);assert.ok(buttons.every(b=>!b.disabled));}
+assert.equal(loads,2);
+console.log('Pitcher model: optimized self-contained VRM, skeleton metadata, lazy normal mode, synchronized rule and ON/OFF restoration passed');
